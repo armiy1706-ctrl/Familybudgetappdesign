@@ -1,51 +1,44 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Настройки CORS встроены прямо в файл для избежания ошибок импорта
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 
 serve(async (req) => {
-  // Обработка Preflight запросов CORS
+  // CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { pathname } = new URL(req.url)
+    const url = new URL(req.url);
+    console.log(`Incoming request: ${req.method} ${url.pathname}`);
 
-    // Эндпоинт для диагностики
-    if (pathname.endsWith('/diagnose')) {
-      const { text, carInfo } = await req.json()
+    // Маршрут диагностики
+    // Supabase передает путь как /diagnose если функция вызвана по этому пути
+    if (url.pathname.includes('/diagnose')) {
+      const body = await req.json();
+      const { text, carInfo } = body;
+
+      console.log('Diagnose request for:', text);
 
       if (!OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY не настроен на сервере')
+        console.error('Missing OPENAI_API_KEY');
+        return new Response(JSON.stringify({ error: 'Сервер не настроен: отсутствует API ключ OpenAI' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
-      const systemPrompt = `Ты — эксперт-автомеханик ИИ в приложении AutoAI. 
-      Проанализируй симптомы: "${text}". 
+      const systemPrompt = `Ты — эксперт-автомеханик ИИ. Проанализируй симптомы: "${text}". 
       Автомобиль: ${carInfo ? `${carInfo.make} ${carInfo.model} ${carInfo.year}` : 'Неизвестен'}.
-      
-      Верни ответ СТРОГО в формате JSON:
-      {
-        "results": [
-          {
-            "diagnosis": "Название проблемы",
-            "description": "Краткое описание почему это произошло",
-            "confidence": 0.95,
-            "risk": "Высокий/Средний/Низкий",
-            "urgency": "Срочно/В течение недели/При следующем ТО",
-            "estimatedCost": "Примерная стоимость в рублях"
-          }
-        ]
-      }
-      Выдай от 1 до 3 наиболее вероятных причин.`
+      Верни JSON с массивом results, содержащим объекты: diagnosis, description, confidence (0-1), risk, urgency, estimatedCost.`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -59,31 +52,33 @@ serve(async (req) => {
           ],
           response_format: { type: "json_object" }
         }),
-      })
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`OpenAI API Error: ${JSON.stringify(errorData)}`);
+      if (!aiResponse.ok) {
+        const error = await aiResponse.text();
+        console.error('OpenAI Error:', error);
+        return new Response(JSON.stringify({ error: 'Ошибка при обращении к нейросети' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
-      const aiData = await response.json()
-      const diagnosisResults = JSON.parse(aiData.choices[0].message.content)
-
-      return new Response(JSON.stringify(diagnosisResults), {
+      const aiData = await aiResponse.json();
+      return new Response(aiData.choices[0].message.content, {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      });
     }
 
-    return new Response(JSON.stringify({ error: 'Route Not Found' }), {
+    return new Response(JSON.stringify({ error: 'Маршрут не найден', path: url.pathname }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    });
 
   } catch (error) {
-    console.error('Server error:', error.message)
+    console.error('Server error:', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    });
   }
 })
