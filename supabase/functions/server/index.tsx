@@ -1,8 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1"
-import axios from "npm:axios"
 import * as https from "node:https"
+import process from "node:process"
 import * as kv from "./kv_store.tsx"
+
+// Глобально отключаем проверку TLS для Node-совместимых модулей в Deno
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,41 +13,56 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
-// Создаем агент для игнорирования проблем с сертификатами Минцифры
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: false,
-});
-
-// Настраиваем axios для работы в среде Deno через Node-совместимость
-const gigaApi = axios.create({
-  httpsAgent,
-  // Важно: заставляем axios использовать http-адаптер вместо fetch-адаптера,
-  // чтобы настройки httpsAgent вступили в силу
-  adapter: 'http', 
-  timeout: 30000,
-});
-
 const GIGACHAT_CREDENTIALS = Deno.env.get('GIGACHAT_CREDENTIALS')
+
+// Универсальная функция для выполнения HTTPS запросов через node:https (игнорируя SSL)
+async function secureRequest(url: string, options: any, body?: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, {
+      ...options,
+      rejectUnauthorized: false, // Принудительно игнорируем ошибки сертификата
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`API Error: ${res.statusCode} - ${JSON.stringify(parsed)}`));
+          } else {
+            resolve(parsed);
+          }
+        } catch (e) {
+          resolve(data);
+        }
+      });
+    });
+
+    req.on('error', (e) => reject(e));
+    if (body) req.write(body);
+    req.end();
+  });
+}
 
 async function getGigaChatToken() {
   const rqId = crypto.randomUUID();
+  console.log('Попытка получения токена GigaChat...');
+  
   try {
-    console.log('Запрос токена через gigachat.devices.sberbank.ru...');
-    const response = await gigaApi.post('https://gigachat.devices.sberbank.ru/api/v2/oauth', 
-      'scope=GIGACHAT_API_PERS',
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
-          'RqUID': rqId,
-          'Authorization': `Basic ${GIGACHAT_CREDENTIALS}`
-        }
+    const data = await secureRequest('https://gigachat.devices.sberbank.ru/api/v2/oauth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'RqUID': rqId,
+        'Authorization': `Basic ${GIGACHAT_CREDENTIALS}`
       }
-    );
-    return response.data.access_token;
+    }, 'scope=GIGACHAT_API_PERS');
+    
+    return data.access_token;
   } catch (error) {
-    console.error('Ошибка OAuth GigaChat:', error.response?.data || error.message);
-    throw new Error(`Ошибка авторизации: ${error.message}`);
+    console.error('Ошибка в getGigaChatToken:', error.message);
+    throw error;
   }
 }
 
@@ -68,34 +86,35 @@ serve(async (req) => {
       Год: ${carInfo?.year || 'Не указан'}
       Пробег: ${carInfo?.mileage || 'Не указан'} км
       
-      ОТВЕЧАЙ СТРОГО В JSON:
+      ОТВЕТЬ В ФОРМАТЕ JSON:
       {
-        "message": "Текст ответа с эмодзи",
-        "results": [{"diagnosis": "Название", "confidence": 0.9, "estimatedCost": "Цена"}]
+        "message": "Полный текст ответа",
+        "results": [{"diagnosis": "Суть", "confidence": 0.9, "estimatedCost": "Цена"}]
       }`;
 
-      const aiResponse = await gigaApi.post('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+      const aiResponse = await secureRequest('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      }, JSON.stringify({
         model: 'GigaChat',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
         ],
         temperature: 0.7
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      }));
 
-      const content = aiResponse.data.choices[0].message.content;
+      const content = aiResponse.choices[0].message.content;
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { message: content, results: [] };
 
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Маршруты данных
+    // --- Другие маршруты ---
     if (url.pathname.includes('/user-data')) {
       const tgId = url.searchParams.get('tgId');
       const cars = await kv.get(`cars_${tgId}`) || [];
@@ -131,7 +150,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: corsHeaders });
 
   } catch (error) {
-    console.error('Ошибка сервера:', error.message);
+    console.error('Критическая ошибка:', error.message);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
   }
 })
