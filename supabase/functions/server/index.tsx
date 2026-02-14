@@ -6,12 +6,33 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
+const GIGACHAT_CREDENTIALS = Deno.env.get('GIGACHAT_CREDENTIALS')
+
+// Функция для получения токена GigaChat
+async function getGigaChatToken() {
+  const rqId = crypto.randomUUID();
+  const response = await fetch('https://ngw.devices.sberbank.ru/api/v2/oauth', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json',
+      'RqUID': rqId,
+      'Authorization': `Basic ${GIGACHAT_CREDENTIALS}`
+    },
+    body: 'scope=GIGACHAT_API_PERS'
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Ошибка авторизации GigaChat: ${err}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const url = new URL(req.url);
@@ -19,73 +40,76 @@ serve(async (req) => {
     if (url.pathname.includes('/diagnose')) {
       const { text, carInfo } = await req.json();
 
-      // Если ключа нет совсем, сразу даем демо-ответ
-      if (!OPENAI_API_KEY) {
-        return returnDemoResponse("API ключ не настроен. Работаю в демо-режиме.");
+      if (!GIGACHAT_CREDENTIALS) {
+        throw new Error('GIGACHAT_CREDENTIALS не настроены');
       }
 
-      const systemPrompt = `Ты — эксперт-автомеханик ИИ. Проанализируй симптомы: "${text}". 
+      // 1. Получаем токен
+      const token = await getGigaChatToken();
+
+      // 2. Формируем запрос к GigaChat
+      const systemPrompt = `Ты — эксперт-автомеханик. Проанализируй симптомы: "${text}". 
       Автомобиль: ${carInfo ? `${carInfo.make} ${carInfo.model} ${carInfo.year}` : 'Неизвестен'}.
-      Верни JSON с массивом results, содержащим объекты: diagnosis, description, confidence (0-1), risk, urgency, estimatedCost.`;
+      
+      ОТВЕТЬ ТОЛЬКО В ФОРМАТЕ JSON:
+      {
+        "results": [
+          {
+            "diagnosis": "Название проблемы",
+            "description": "Краткое описание",
+            "confidence": 0.9,
+            "risk": "Высокий/Средний/Низкий",
+            "urgency": "Срочно/Позже",
+            "estimatedCost": "Цена"
+          }
+        ]
+      }`;
 
-      try {
-        const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: text }
-            ],
-            response_format: { type: "json_object" }
-          }),
-        });
+      const aiResponse = await fetch('https://ngw.devices.sberbank.ru/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          model: 'GigaChat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text }
+          ],
+          temperature: 0.7
+        })
+      });
 
-        const aiData = await aiResponse.json();
+      const aiData = await aiResponse.json();
+      const content = aiData.choices[0].message.content;
+      
+      // Парсим JSON из ответа (GigaChat иногда добавляет текст вокруг JSON)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { results: [] };
 
-        if (aiData.error && aiData.error.code === 'insufficient_quota') {
-          return returnDemoResponse("Лимит OpenAI исчерпан. (Демо-ответ)");
-        }
-
-        if (!aiResponse.ok) {
-          throw new Error(aiData.error?.message || 'OpenAI Error');
-        }
-
-        return new Response(JSON.stringify(aiData.choices[0].message.content ? JSON.parse(aiData.choices[0].message.content) : aiData), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-
-      } catch (err) {
-        console.error('AI Fetch Error:', err);
-        return returnDemoResponse(`Ошибка API (${err.message}). Показываю демо-анализ.`);
-      }
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: corsHeaders });
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+    console.error('Server error:', error.message);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      results: [{
+        diagnosis: "Ошибка сервиса",
+        description: "Не удалось связаться с GigaChat. Проверьте настройки ключей.",
+        confidence: 0,
+        risk: "Неизвестно",
+        urgency: "Свяжитесь с поддержкой",
+        estimatedCost: "-"
+      }]
+    }), { 
+      status: 200, // Возвращаем 200, чтобы фронтенд показал сообщение об ошибке красиво
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
 })
-
-function returnDemoResponse(note: string) {
-  const demoData = {
-    results: [
-      {
-        diagnosis: "Требуется проверка (Демо-режим)",
-        description: `${note} Похоже на проблему с датчиками или ходовой частью. Проверьте уровень жидкостей и визуальное состояние узлов.`,
-        confidence: 0.7,
-        risk: "Средний",
-        urgency: "В течение недели",
-        estimatedCost: "от 3 000 до 15 000 ₽"
-      }
-    ]
-  };
-  return new Response(JSON.stringify(demoData), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
