@@ -8,7 +8,6 @@ const corsHeaders = {
 
 const GIGACHAT_CREDENTIALS = Deno.env.get('GIGACHAT_CREDENTIALS')
 
-// Функция для получения токена GigaChat
 async function getGigaChatToken() {
   const rqId = crypto.randomUUID();
   const response = await fetch('https://ngw.devices.sberbank.ru/api/v2/oauth', {
@@ -22,11 +21,7 @@ async function getGigaChatToken() {
     body: 'scope=GIGACHAT_API_PERS'
   });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Ошибка авторизации GigaChat: ${err}`);
-  }
-
+  if (!response.ok) throw new Error('Ошибка авторизации GigaChat');
   const data = await response.json();
   return data.access_token;
 }
@@ -40,28 +35,33 @@ serve(async (req) => {
     if (url.pathname.includes('/diagnose')) {
       const { text, carInfo } = await req.json();
 
-      if (!GIGACHAT_CREDENTIALS) {
-        throw new Error('GIGACHAT_CREDENTIALS не настроены');
-      }
-
-      // 1. Получаем токен
       const token = await getGigaChatToken();
 
-      // 2. Формируем запрос к GigaChat
-      const systemPrompt = `Ты — эксперт-автомеханик. Проанализируй симптомы: "${text}". 
-      Автомобиль: ${carInfo ? `${carInfo.make} ${carInfo.model} ${carInfo.year}` : 'Неизвестен'}.
+      const systemPrompt = `Ты — опытный автомеханик с 15-летним стажем. 
+      ИНФОРМАЦИЯ ОБ АВТОМОБИЛЕ:
+      Марка/Модель: ${carInfo?.make} ${carInfo?.model}
+      Год: ${carInfo?.year || 'Не указан'}
+      Пробег: ${carInfo?.mileage || 'Не указан'} км
+      VIN: ${carInfo?.vin || 'Не указан'}
+      Двигатель: ${carInfo?.engine || 'Не указан'}
+
+      ТВОЯ ЗАДАЧА:
+      Проанализируй симптомы: "${text}". Учитывай пробег при диагностике.
       
-      ОТВЕТЬ ТОЛЬКО В ФОРМАТЕ JSON:
+      СТРУКТУРА ОТВЕТА (ОБЯЗАТЕЛЬНО):
+      🚗 ДИАГНОЗ: ...
+      ⚙️ ВОЗМОЖНЫЕ ПРИЧИНЫ: ...
+      📋 ЧТО ПОНАДОБИТСЯ: ...
+      🔧 ПОШАГОВАЯ ИНСТРУКЦИЯ: ...
+      💰 ЗАПЧАСТИ: ...
+      💡 СОВЕТ ПРОФИЛАКТИКИ: ...
+
+      Верни ответ в формате JSON:
       {
+        "message": "Весь твой текст со всеми разделами и эмодзи",
+        "shortDiagnosis": "Краткая суть одной фразой",
         "results": [
-          {
-            "diagnosis": "Название проблемы",
-            "description": "Краткое описание",
-            "confidence": 0.9,
-            "risk": "Высокий/Средний/Низкий",
-            "urgency": "Срочно/Позже",
-            "estimatedCost": "Цена"
-          }
+          { "diagnosis": "Название", "confidence": 0.9, "risk": "Высокий", "urgency": "Срочно", "estimatedCost": "Цена" }
         ]
       }`;
 
@@ -73,20 +73,15 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           model: 'GigaChat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: text }
-          ],
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: text }],
           temperature: 0.7
         })
       });
 
       const aiData = await aiResponse.json();
       const content = aiData.choices[0].message.content;
-      
-      // Парсим JSON из ответа (GigaChat иногда добавляет текст вокруг JSON)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { results: [] };
+      const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { message: content, results: [] };
 
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -96,20 +91,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: corsHeaders });
 
   } catch (error) {
-    console.error('Server error:', error.message);
-    return new Response(JSON.stringify({ 
-      error: error.message,
-      results: [{
-        diagnosis: "Ошибка сервиса",
-        description: "Не удалось связаться с GigaChat. Проверьте настройки ключей.",
-        confidence: 0,
-        risk: "Неизвестно",
-        urgency: "Свяжитесь с поддержкой",
-        estimatedCost: "-"
-      }]
-    }), { 
-      status: 200, // Возвращаем 200, чтобы фронтенд показал сообщение об ошибке красиво
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
   }
 })
