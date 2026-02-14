@@ -14,7 +14,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { Toaster, toast } from 'sonner@2.0.3';
+import { Toaster, toast } from 'sonner';
 import { Dashboard } from './components/Dashboard';
 import { DiagnosticChat } from './components/DiagnosticChat';
 import { OBDScanner } from './components/OBDScanner';
