@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, Bot, User, AlertTriangle, ShieldCheck, Clock, CreditCard, ChevronRight, Loader2 } from 'lucide-react';
-import { projectId } from '../utils/supabase/info';
+import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c`;
 
@@ -36,26 +36,42 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
     setInput('');
     setIsTyping(true);
 
+    console.log('Sending request to:', `${API_URL}/diagnose`);
+
     try {
       const res = await fetch(`${API_URL}/diagnose`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
         body: JSON.stringify({ 
           text: currentInput, 
           carInfo: activeCar ? { make: activeCar.make, model: activeCar.model, year: activeCar.year } : null 
         })
       });
+      
+      console.log('Response status:', res.status);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Server error response:', errorText);
+        throw new Error(`Ошибка сервера: ${res.status}`);
+      }
+      
       const data = await res.json();
+      console.log('Received data:', data);
       
       const assistantMsg: Message = { 
         id: (Date.now() + 1).toString(), 
         role: 'assistant', 
-        content: `Я проанализировал ваши симптомы. Вот наиболее вероятные причины:`,
-        results: data.results
+        content: data.results ? `Я проанализировал симптомы для вашего ${activeCar ? activeCar.make : 'автомобиля'}. Вот что удалось выяснить:` : 'Не удалось получить внятный ответ от ИИ.',
+        results: data.results || []
       };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err) {
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Извините, произошла ошибка при диагностике. Попробуйте еще раз.' }]);
+      console.error('Chat error:', err);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: `Произошла ошибка: ${err instanceof Error ? err.message : 'Неизвестная ошибка'}` }]);
     } finally {
       setIsTyping(false);
     }
