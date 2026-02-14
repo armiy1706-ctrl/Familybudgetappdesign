@@ -1,11 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1"
 import * as https from "node:https"
-import process from "node:process"
 import * as kv from "./kv_store.tsx"
-
-// Глобально отключаем проверку TLS для Node-совместимых модулей в Deno
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,30 +11,38 @@ const corsHeaders = {
 
 const GIGACHAT_CREDENTIALS = Deno.env.get('GIGACHAT_CREDENTIALS')
 
-// Универсальная функция для выполнения HTTPS запросов через node:https (игнорируя SSL)
+// Функция для выполнения HTTPS запросов с игнорированием SSL
 async function secureRequest(url: string, options: any, body?: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    const req = https.request(url, {
+    // Формируем параметры запроса
+    const requestOptions = {
       ...options,
-      rejectUnauthorized: false, // Принудительно игнорируем ошибки сертификата
-    }, (res) => {
+      rejectUnauthorized: false, // Игнорируем ошибки сертификата Минцифры
+    };
+
+    const req = https.request(url, requestOptions, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
           if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`API Error: ${res.statusCode} - ${JSON.stringify(parsed)}`));
+            reject(new Error(`GigaChat API Error: ${res.statusCode} - ${JSON.stringify(parsed)}`));
           } else {
             resolve(parsed);
           }
         } catch (e) {
+          // Если ответ не JSON, возвращаем как текст
           resolve(data);
         }
       });
     });
 
-    req.on('error', (e) => reject(e));
+    req.on('error', (e) => {
+      console.error('Сетевая ошибка запроса:', e);
+      reject(e);
+    });
+
     if (body) req.write(body);
     req.end();
   });
@@ -46,7 +50,7 @@ async function secureRequest(url: string, options: any, body?: string): Promise<
 
 async function getGigaChatToken() {
   const rqId = crypto.randomUUID();
-  console.log('Попытка получения токена GigaChat...');
+  console.log('Попытка получения токена GigaChat через secureRequest...');
   
   try {
     const data = await secureRequest('https://gigachat.devices.sberbank.ru/api/v2/oauth', {
@@ -59,9 +63,13 @@ async function getGigaChatToken() {
       }
     }, 'scope=GIGACHAT_API_PERS');
     
-    return data.access_token;
+    if (data.access_token) {
+      console.log('Токен успешно получен');
+      return data.access_token;
+    }
+    throw new Error('Токен не найден в ответе');
   } catch (error) {
-    console.error('Ошибка в getGigaChatToken:', error.message);
+    console.error('Ошибка авторизации GigaChat:', error.message);
     throw error;
   }
 }
@@ -80,16 +88,16 @@ serve(async (req) => {
       const { text, carInfo } = await req.json();
       const token = await getGigaChatToken();
 
-      const systemPrompt = `Ты — опытный автомеханик. 
+      const systemPrompt = `Ты — опытный автомеханик с 15-летним стажем. 
       ИНФОРМАЦИЯ ОБ АВТОМОБИЛЕ:
       Марка/Модель: ${carInfo?.make} ${carInfo?.model}
       Год: ${carInfo?.year || 'Не указан'}
       Пробег: ${carInfo?.mileage || 'Не указан'} км
       
-      ОТВЕТЬ В ФОРМАТЕ JSON:
+      ОТВЕТЬ СТРОГО В JSON:
       {
-        "message": "Полный текст ответа",
-        "results": [{"diagnosis": "Суть", "confidence": 0.9, "estimatedCost": "Цена"}]
+        "message": "Полный структурированный текст ответа с эмодзи",
+        "results": [{"diagnosis": "Основная проблема", "confidence": 0.9, "estimatedCost": "Примерная цена"}]
       }`;
 
       const aiResponse = await secureRequest('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
@@ -114,7 +122,7 @@ serve(async (req) => {
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // --- Другие маршруты ---
+    // --- Маршруты синхронизации ---
     if (url.pathname.includes('/user-data')) {
       const tgId = url.searchParams.get('tgId');
       const cars = await kv.get(`cars_${tgId}`) || [];
@@ -150,7 +158,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: corsHeaders });
 
   } catch (error) {
-    console.error('Критическая ошибка:', error.message);
+    console.error('Ошибка выполнения:', error.message);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
   }
 })
