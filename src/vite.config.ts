@@ -9,11 +9,13 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': './',
+      '@': '/',
     },
   },
   build: {
     outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: false,
     reportCompressedSize: false,
   },
 });
