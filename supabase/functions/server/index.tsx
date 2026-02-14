@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1"
 import * as https from "node:https"
 import * as kv from "./kv_store.tsx"
@@ -104,8 +103,10 @@ async function callOpenAI(prompt: string, text: string) {
   return data.choices[0].message.content;
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   try {
     const url = new URL(req.url);
@@ -119,9 +120,13 @@ serve(async (req) => {
       JSON: {"message": "ответ", "results": [{"diagnosis": "проблема", "confidence": 0.9, "estimatedCost": "цена"}]}`;
 
       let content = '';
-      if (provider === 'askcodi' && ASKCODI_API_KEY) content = await callAskCodi(systemPrompt, text);
-      else if (provider === 'openai' && OPENAI_API_KEY) content = await callOpenAI(systemPrompt, text);
-      else content = await callGigaChat(systemPrompt, text);
+      if (provider === 'askcodi' && ASKCODI_API_KEY) {
+        content = await callAskCodi(systemPrompt, text);
+      } else if (provider === 'openai' && OPENAI_API_KEY) {
+        content = await callOpenAI(systemPrompt, text);
+      } else {
+        content = await callGigaChat(systemPrompt, text);
+      }
 
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { message: content, results: [] };
@@ -131,6 +136,7 @@ serve(async (req) => {
     // --- User Data Route ---
     if (path === 'user-data') {
       const tgId = url.searchParams.get('tgId');
+      if (!tgId) return new Response('Missing tgId', { status: 400, headers: corsHeaders });
       const cars = await kv.get(`cars_${tgId}`) || [];
       return new Response(JSON.stringify({ cars }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -164,6 +170,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ error: 'Not Found', path }), { status: 404, headers: corsHeaders });
   } catch (error) {
+    console.error("Server Error:", error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
   }
-})
+});
