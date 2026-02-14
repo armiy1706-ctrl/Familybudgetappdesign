@@ -32,6 +32,7 @@
           "@radix-ui/react-toggle-group": "*",
           "@radix-ui/react-tooltip": "*",
           "@supabase/supabase-js": "*",
+          "@tailwindcss/vite": "*",
           "@vitejs/plugin-react": "*",
           "class-variance-authority": "*",
           "clsx": "*",
