@@ -27,13 +27,19 @@ const CAR_DATABASE: Record<string, string[]> = {
   'Porsche': ['911', 'Cayenne', 'Panamera', 'Taycan', 'Macan'],
 };
 
-export const Profile = ({ cars, onAddCar, activeCarIndex, onSwitchCar }: { 
+export const Profile = ({ session, userProfile, cars, onAddCar, activeCarIndex, onSwitchCar }: { 
+  session: any,
+  userProfile: any,
   cars: any[], 
   onAddCar: (car: any) => void,
   activeCarIndex: number,
   onSwitchCar: (index: number) => void
 }) => {
   const [view, setView] = useState<ProfileView>('list');
+  const metadata = session?.user?.user_metadata;
+  const fullName = metadata?.full_name || userProfile?.fullName || 'Пользователь';
+  const avatarUrl = metadata?.avatar_url || userProfile?.avatarUrl;
+  const username = metadata?.username || userProfile?.username;
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<CarFormData>({
     defaultValues: {
@@ -210,19 +216,36 @@ export const Profile = ({ cars, onAddCar, activeCarIndex, onSwitchCar }: {
       {/* Profile Header */}
       <div className="bg-white rounded-[40px] p-8 md:p-10 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-10">
         <div className="relative group">
-          <div className="w-32 h-32 bg-indigo-600 rounded-[40px] flex items-center justify-center text-4xl font-black text-white shadow-xl shadow-indigo-100 group-hover:scale-105 transition-transform">
-            AD
-          </div>
+          {avatarUrl ? (
+            <img 
+              src={avatarUrl} 
+              alt="Profile" 
+              className="w-32 h-32 rounded-[40px] object-cover border-4 border-indigo-50 shadow-xl shadow-indigo-100 group-hover:scale-105 transition-transform"
+            />
+          ) : (
+            <div className="w-32 h-32 bg-indigo-600 rounded-[40px] flex items-center justify-center text-4xl font-black text-white shadow-xl shadow-indigo-100 group-hover:scale-105 transition-transform">
+              {fullName[0]}
+            </div>
+          )}
           <button className="absolute -bottom-2 -right-2 p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 shadow-lg transition-all">
             <Settings size={18} />
           </button>
         </div>
         <div className="text-center md:text-left flex-1">
-          <h3 className="text-3xl font-black text-slate-900 mb-1">Alex Drive</h3>
-          <p className="text-slate-400 font-medium mb-6">alex.drive@example.com • Владелец {cars.length} авто</p>
+          <h3 className="text-3xl font-black text-slate-900 mb-1">{fullName}</h3>
+          <p className="text-slate-400 font-medium mb-6">
+            {username ? `@${username}` : session?.user?.email} • Владелец {cars.length} авто
+          </p>
           <div className="flex flex-wrap justify-center md:justify-start gap-4">
             <span className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest">Pro Member</span>
-            <span className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black uppercase tracking-widest">Verified VIN</span>
+            {metadata?.telegram_id && (
+              <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM16.64 8.8C16.49 10.38 15.84 14.19 15.51 15.96C15.37 16.71 15.09 16.96 14.82 16.99C14.24 17.04 13.8 16.61 13.24 16.24C12.36 15.66 11.86 15.3 11 14.74C10.01 14.09 10.65 13.73 11.22 13.14C11.37 12.99 13.93 10.66 13.98 10.45C13.99 10.42 13.99 10.34 13.95 10.31C13.91 10.27 13.84 10.28 13.79 10.29C13.72 10.31 12.63 11.03 10.53 12.45C10.22 12.66 9.94 12.77 9.69 12.76C9.42 12.75 8.89 12.61 8.5 12.48C8.02 12.32 7.64 12.24 7.67 11.97C7.69 11.83 7.88 11.69 8.25 11.55C10.51 10.57 12.02 9.92 12.78 9.61C14.94 8.71 15.39 8.55 15.68 8.55C15.75 8.55 15.9 8.57 16.01 8.65C16.1 8.73 16.12 8.84 16.13 8.92C16.12 8.98 16.12 9.04 16.11 9.1L16.64 8.8Z"/>
+                </svg>
+                Telegram Connected
+              </span>
+            )}
           </div>
         </div>
       </div>
