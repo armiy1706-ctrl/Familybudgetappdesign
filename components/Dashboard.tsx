@@ -10,28 +10,33 @@ interface ServiceFormData {
   interval: number;
 }
 
-export const Dashboard = ({ onNavigate, activeCar }: { onNavigate: (tab: string) => void, activeCar?: any }) => {
+export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData }: { 
+  onNavigate: (tab: string) => void, 
+  activeCar?: any,
+  dashboardData: any,
+  setDashboardData: (data: any) => void
+}) => {
   const [showOilModal, setShowOilModal] = useState(false);
   const [showBrakeModal, setShowBrakeModal] = useState(false);
   const [showOdometerModal, setShowOdometerModal] = useState(false);
   
-  const [currentOdometer, setCurrentOdometer] = useState<number>(15000);
-  const [oilStatus, setOilStatus] = useState<{ lastDate: string, lastKm: number, nextKm: number } | null>(null);
-  const [brakeStatus, setBrakeStatus] = useState<{ lastDate: string, lastKm: number, nextKm: number } | null>(null);
+  const currentOdometer = dashboardData.currentOdometer;
+  const oilStatus = dashboardData.oilStatus;
+  const brakeStatus = dashboardData.brakeStatus;
   
   const oilForm = useForm<ServiceFormData>({
     defaultValues: {
-      date: '2026-02-13',
-      odometer: 10000,
-      interval: 10000
+      date: oilStatus?.lastDate || '2026-02-13',
+      odometer: oilStatus?.lastKm || 10000,
+      interval: (oilStatus?.nextKm - oilStatus?.lastKm) || 10000
     }
   });
 
   const brakeForm = useForm<ServiceFormData>({
     defaultValues: {
-      date: '2026-02-13',
-      odometer: 5000,
-      interval: 30000
+      date: brakeStatus?.lastDate || '2026-02-13',
+      odometer: brakeStatus?.lastKm || 5000,
+      interval: (brakeStatus?.nextKm - brakeStatus?.lastKm) || 30000
     }
   });
 
@@ -50,27 +55,36 @@ export const Dashboard = ({ onNavigate, activeCar }: { onNavigate: (tab: string)
   const nextBrakeServiceKm = Number(watchBrakeOdometer || 0) + Number(watchBrakeInterval || 0);
 
   const onOilSubmit = (data: ServiceFormData) => {
-    setOilStatus({
-      lastDate: data.date,
-      lastKm: Number(data.odometer),
-      nextKm: Number(data.odometer) + Number(data.interval)
+    setDashboardData({
+      ...dashboardData,
+      oilStatus: {
+        lastDate: data.date,
+        lastKm: Number(data.odometer),
+        nextKm: Number(data.odometer) + Number(data.interval)
+      }
     });
     toast.success('Данные о масле сохранены!');
     setShowOilModal(false);
   };
 
   const onBrakeSubmit = (data: ServiceFormData) => {
-    setBrakeStatus({
-      lastDate: data.date,
-      lastKm: Number(data.odometer),
-      nextKm: Number(data.odometer) + Number(data.interval)
+    setDashboardData({
+      ...dashboardData,
+      brakeStatus: {
+        lastDate: data.date,
+        lastKm: Number(data.odometer),
+        nextKm: Number(data.odometer) + Number(data.interval)
+      }
     });
     toast.success('Данные о тормозах сохранены!');
     setShowBrakeModal(false);
   };
 
   const onOdometerSubmit = (data: { odometer: number }) => {
-    setCurrentOdometer(Number(data.odometer));
+    setDashboardData({
+      ...dashboardData,
+      currentOdometer: Number(data.odometer)
+    });
     toast.success('Текущий пробег обновлен!');
     setShowOdometerModal(false);
   };
