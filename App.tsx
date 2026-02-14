@@ -54,6 +54,9 @@ export default function App() {
 
   // Persistence: Save active car, chat and dashboard to localStorage
   useEffect(() => {
+    const savedCars = localStorage.getItem('autoai_cars');
+    if (savedCars) setCars(JSON.parse(savedCars));
+
     const savedCarIndex = localStorage.getItem('autoai_active_car_index');
     if (savedCarIndex !== null) setActiveCarIndex(parseInt(savedCarIndex));
     
@@ -63,6 +66,10 @@ export default function App() {
     const savedDash = localStorage.getItem('autoai_dashboard_data');
     if (savedDash) setDashboardData(JSON.parse(savedDash));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('autoai_cars', JSON.stringify(cars));
+  }, [cars]);
 
   useEffect(() => {
     localStorage.setItem('autoai_active_car_index', activeCarIndex.toString());
@@ -95,25 +102,44 @@ export default function App() {
 
   const addCar = (car: any) => {
     setCars(prev => {
-      const newCars = [...prev, { ...car, id: Date.now() }];
+      const newCars = [...prev, { ...car, id: Date.now().toString(), serviceHistory: [] }];
       if (prev.length === 0) setActiveCarIndex(0);
       
-      // Persist to server if logged in
-      const tgId = session?.user?.user_metadata?.telegram_id;
-      if (tgId) {
-        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/save-cars`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`
-          },
-          body: JSON.stringify({ tgId, cars: newCars })
-        });
-      }
-      
+      syncCarsWithServer(newCars);
       return newCars;
     });
   };
+
+  const addServiceRecord = (carId: string, record: any) => {
+    setCars(prev => {
+      const newCars = prev.map(c => {
+        if (c.id === carId) {
+          return { ...c, serviceHistory: [record, ...(c.serviceHistory || [])] };
+        }
+        return c;
+      });
+      syncCarsWithServer(newCars);
+      return newCars;
+    });
+  };
+
+  const syncCarsWithServer = (currentCars: any[]) => {
+    const tgId = session?.user?.user_metadata?.telegram_id;
+    if (tgId) {
+      fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/save-cars`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ tgId, cars: currentCars })
+      });
+    }
+  };
+
+  useEffect(() => {
+    (window as any).addServiceRecord = addServiceRecord;
+  }, [cars, session]);
 
   const switchCar = (index: number) => {
     setActiveCarIndex(index);
