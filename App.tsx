@@ -43,6 +43,38 @@ export default function App() {
   const [cars, setCars] = useState<any[]>([]);
   const [activeCarIndex, setActiveCarIndex] = useState(0);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([
+    { id: '1', role: 'assistant', content: 'Здравствуйте! Я ваш ИИ-автомеханик. Опишите симптомы неисправности вашего автомобиля или введите коды ошибок OBD-II.' }
+  ]);
+  const [dashboardData, setDashboardData] = useState<any>({
+    currentOdometer: 15000,
+    oilStatus: null,
+    brakeStatus: null
+  });
+
+  // Persistence: Save active car, chat and dashboard to localStorage
+  useEffect(() => {
+    const savedCarIndex = localStorage.getItem('autoai_active_car_index');
+    if (savedCarIndex !== null) setActiveCarIndex(parseInt(savedCarIndex));
+    
+    const savedChat = localStorage.getItem('autoai_chat_history');
+    if (savedChat) setChatMessages(JSON.parse(savedChat));
+
+    const savedDash = localStorage.getItem('autoai_dashboard_data');
+    if (savedDash) setDashboardData(JSON.parse(savedDash));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('autoai_active_car_index', activeCarIndex.toString());
+  }, [activeCarIndex]);
+
+  useEffect(() => {
+    localStorage.setItem('autoai_chat_history', JSON.stringify(chatMessages));
+  }, [chatMessages]);
+
+  useEffect(() => {
+    localStorage.setItem('autoai_dashboard_data', JSON.stringify(dashboardData));
+  }, [dashboardData]);
 
   const fetchUserData = async (user: any) => {
     try {
@@ -192,8 +224,8 @@ export default function App() {
   const renderContent = () => {
     const activeCar = cars[activeCarIndex] || null;
     switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} />;
-      case 'diagnostics': return <DiagnosticChat />;
+      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={dashboardData} setDashboardData={setDashboardData} />;
+      case 'diagnostics': return <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />;
       case 'obd': return <OBDScanner />;
       case 'knowledge': return <KnowledgeBase />;
       case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
