@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "jsr:@supabase/supabase-js@2.49.8"
-import axios from "npm:axios"
-import * as https from "node:https"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1"
 import * as kv from "./kv_store.tsx"
 
 const corsHeaders = {
@@ -10,34 +8,50 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
-// Создаем агент, который игнорирует проверку сертификатов (необходимо для GigaChat в облаке)
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: false,
-});
-
 const GIGACHAT_CREDENTIALS = Deno.env.get('GIGACHAT_CREDENTIALS')
 
 async function getGigaChatToken() {
   const rqId = crypto.randomUUID();
-  try {
-    const response = await axios.post('https://ngw.devices.sberbank.ru/api/v2/oauth', 
-      'scope=GIGACHAT_API_PERS',
-      {
+  
+  // Мы пробуем альтернативный эндпоинт, который часто работает лучше в облачных средах
+  const oauthUrls = [
+    'https://gigachat.devices.sberbank.ru/api/v2/oauth',
+    'https://ngw.devices.sberbank.ru/api/v2/oauth'
+  ];
+
+  let lastError = null;
+
+  for (const url of oauthUrls) {
+    try {
+      console.log(`Попытка авторизации GigaChat через: ${url}`);
+      const response = await fetch(url, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json',
           'RqUID': rqId,
           'Authorization': `Basic ${GIGACHAT_CREDENTIALS}`,
-          'User-Agent': 'AutoAI-App/1.0'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
-        httpsAgent
+        body: 'scope=GIGACHAT_API_PERS'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Токен GigaChat успешно получен');
+        return data.access_token;
+      } else {
+        const errorText = await response.text();
+        console.error(`Ошибка эндпоинта ${url}: ${response.status} ${errorText}`);
+        lastError = new Error(`Status ${response.status}: ${errorText}`);
       }
-    );
-    return response.data.access_token;
-  } catch (error) {
-    console.error('Ошибка OAuth GigaChat:', error.response?.data || error.message);
-    throw new Error(`Ошибка авторизации GigaChat: ${error.message}`);
+    } catch (e) {
+      console.error(`Сетевая ошибка на ${url}:`, e.message);
+      lastError = e;
+    }
   }
+
+  throw new Error(`Все методы авторизации GigaChat провалились. Последняя ошибка: ${lastError?.message}`);
 }
 
 serve(async (req) => {
@@ -63,47 +77,46 @@ serve(async (req) => {
       Двигатель: ${carInfo?.engine || 'Не указан'}
 
       ТВОЯ ЗАДАЧА:
-      Проанализируй симптомы: "${text}". Учитывай пробег при диагностике.
-      Отвечай строго в формате JSON по структуре ниже.
-
-      СТРУКТУРА ОТВЕТА:
-      🚗 ДИАГНОЗ: ...
-      ⚙️ ВОЗМОЖНЫЕ ПРИЧИНЫ: ...
-      📋 ЧТО ПОНАДОБИТСЯ: ...
-      🔧 ПОШАГОВАЯ ИНСТРУКЦИЯ: ...
-      💰 ЗАПЧАСТИ: ...
-      💡 СОВЕТ ПРОФИЛАКТИКИ: ...
-
-      JSON:
+      Проанализируй симптомы: "${text}".
+      
+      СТРУКТУРА ОТВЕТА (JSON):
       {
-        "message": "Весь текст ответа",
-        "results": [{ "diagnosis": "Проблема", "confidence": 0.9, "estimatedCost": "Цена" }]
+        "message": "Полный текст ответа с эмодзи",
+        "results": [{"diagnosis": "Название", "confidence": 0.9, "estimatedCost": "Цена"}]
       }`;
 
-      const aiResponse = await axios.post('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
-        model: 'GigaChat',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text }
-        ],
-        temperature: 0.7
-      }, {
+      const aiResponse = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
-          'User-Agent': 'AutoAI-App/1.0'
         },
-        httpsAgent
+        body: JSON.stringify({
+          model: 'GigaChat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text }
+          ],
+          temperature: 0.7
+        })
       });
 
-      const content = aiResponse.data.choices[0].message.content;
+      if (!aiResponse.ok) {
+        const err = await aiResponse.text();
+        throw new Error(`Ошибка GigaChat API: ${err}`);
+      }
+
+      const aiData = await aiResponse.json();
+      const content = aiData.choices[0].message.content;
+      
+      // Парсим JSON из ответа ИИ
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { message: content, results: [] };
 
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // --- Маршруты синхронизации данных ---
+    // --- Другие эндпоинты ---
     if (url.pathname.includes('/user-data')) {
       const tgId = url.searchParams.get('tgId');
       if (!tgId) return new Response('Missing tgId', { status: 400, headers: corsHeaders });
@@ -150,7 +163,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: corsHeaders });
 
   } catch (error) {
-    console.error('Критическая ошибка сервера:', error);
+    console.error('Ошибка в обработчике:', error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
   }
 })
