@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Activity, Calendar, Settings, AlertTriangle, ShieldCheck, ChevronRight, Fuel, Wrench, Droplets, X, Gauge, Zap } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
-import { useForm } from 'react-hook-form@7.55.0';
+import { toast } from 'sonner';
+import { useForm } from 'react-hook-form';
 
 interface ServiceFormData {
   date: string;
