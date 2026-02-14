@@ -42,11 +42,43 @@ export default function App() {
   const [isAutoAuthenticating, setIsAutoAuthenticating] = useState(false);
   const [cars, setCars] = useState<any[]>([]);
   const [activeCarIndex, setActiveCarIndex] = useState(0);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  const fetchUserData = async (user: any) => {
+    try {
+      const tgId = user.user_metadata?.telegram_id;
+      if (tgId) {
+        // Fetch cars from KV via server
+        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/user-data?tgId=${tgId}`, {
+          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+        });
+        const data = await response.json();
+        if (data.cars) setCars(data.cars);
+        if (data.profile) setUserProfile(data.profile);
+      }
+    } catch (err) {
+      console.error('Failed to fetch user data:', err);
+    }
+  };
 
   const addCar = (car: any) => {
     setCars(prev => {
       const newCars = [...prev, { ...car, id: Date.now() }];
       if (prev.length === 0) setActiveCarIndex(0);
+      
+      // Persist to server if logged in
+      const tgId = session?.user?.user_metadata?.telegram_id;
+      if (tgId) {
+        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/save-cars`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`
+          },
+          body: JSON.stringify({ tgId, cars: newCars })
+        });
+      }
+      
       return newCars;
     });
   };
@@ -67,6 +99,7 @@ export default function App() {
       if (!session) {
         setTimeout(() => handleTelegramAutoAuth(), 500);
       } else {
+        fetchUserData(session.user);
         setIsLoading(false);
       }
     });
@@ -75,6 +108,7 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) fetchUserData(session.user);
     });
 
     return () => {
@@ -162,7 +196,7 @@ export default function App() {
       case 'diagnostics': return <DiagnosticChat />;
       case 'obd': return <OBDScanner />;
       case 'knowledge': return <KnowledgeBase />;
-      case 'profile': return <Profile cars={cars} onAddCar={addCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
+      case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
     }
   };
 
@@ -201,9 +235,17 @@ export default function App() {
             {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
           </button>
           <div className="mt-4 p-4 bg-slate-50 rounded-2xl flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600 shrink-0 capitalize">
-              {session?.user?.email?.[0] || 'A'}
-            </div>
+            {session?.user?.user_metadata?.avatar_url ? (
+              <img 
+                src={session.user.user_metadata.avatar_url} 
+                alt="Avatar" 
+                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600 shrink-0 capitalize">
+                {session?.user?.email?.[0] || 'A'}
+              </div>
+            )}
             {isSidebarOpen && (
               <div className="truncate">
                 <p className="text-xs font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name || 'Пользователь'}</p>
@@ -253,9 +295,16 @@ export default function App() {
             </button>
             <div className="h-6 w-[1px] bg-slate-100 mx-1 hidden sm:block"></div>
             <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[10px] font-black uppercase text-slate-900 leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'Toyota'}</p>
+              <p className="text-[10px] font-black uppercase text-slate-900 leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}</p>
               <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Online</p>
             </div>
+            {session?.user?.user_metadata?.avatar_url && (
+              <img 
+                src={session.user.user_metadata.avatar_url} 
+                alt="Profile" 
+                className="w-9 h-9 rounded-xl object-cover border border-slate-200 shadow-sm hidden sm:block"
+              />
+            )}
           </div>
         </header>
 
@@ -351,9 +400,17 @@ export default function App() {
                 ))}
               </nav>
               <div className="mt-auto pt-8 border-t border-slate-100 flex items-center gap-4">
-                <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">
-                  {session?.user?.email?.[0]?.toUpperCase()}
-                </div>
+                {session?.user?.user_metadata?.avatar_url ? (
+                  <img 
+                    src={session.user.user_metadata.avatar_url} 
+                    alt="Avatar" 
+                    className="w-12 h-12 rounded-full object-cover border-2 border-indigo-50"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">
+                    {session?.user?.email?.[0]?.toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name}</p>
                   <button onClick={handleLogout} className="text-xs font-bold text-rose-500 hover:text-rose-600">Выйти</button>
