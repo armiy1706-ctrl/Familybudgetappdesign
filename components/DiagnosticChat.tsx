@@ -36,8 +36,6 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
     setInput('');
     setIsTyping(true);
 
-    console.log('Sending request to:', `${API_URL}/diagnose`);
-
     try {
       const res = await fetch(`${API_URL}/diagnose`, {
         method: 'POST',
@@ -47,33 +45,51 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
         },
         body: JSON.stringify({ 
           text: currentInput, 
-          carInfo: activeCar ? { make: activeCar.make, model: activeCar.model, year: activeCar.year } : null 
+          carInfo: activeCar ? { 
+            make: activeCar.make, 
+            model: activeCar.model, 
+            year: activeCar.year,
+            vin: activeCar.vin,
+            mileage: activeCar.mileage,
+            engine: activeCar.engine
+          } : null 
         })
       });
       
-      console.log('Response status:', res.status);
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Server error response:', errorText);
-        throw new Error(`Ошибка сервера: ${res.status}`);
-      }
-      
+      if (!res.ok) throw new Error('Ошибка сервера');
       const data = await res.json();
-      console.log('Received data:', data);
       
       const assistantMsg: Message = { 
         id: (Date.now() + 1).toString(), 
         role: 'assistant', 
-        content: data.results ? `Я проанализировал симптомы для вашего ${activeCar ? activeCar.make : 'автомобиля'}. Вот что удалось выяснить:` : 'Не удалось получить внятный ответ от ИИ.',
+        content: data.message || 'Не удалось получить ответ.',
         results: data.results || []
       };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err) {
-      console.error('Chat error:', err);
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: `Произошла ошибка: ${err instanceof Error ? err.message : 'Неизвестная ошибка'}` }]);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Ошибка связи с механиком.' }]);
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  const saveToHistory = (msg: Message) => {
+    if (!activeCar) return;
+    
+    const newRecord = {
+      id: Date.now().toString(),
+      date: new Date().toLocaleDateString('ru-RU'),
+      type: 'Диагностика ИИ',
+      description: msg.results?.[0]?.diagnosis || 'Анализ симптомов',
+      cost: msg.results?.[0]?.estimatedCost || '0',
+      details: msg.content,
+      mileage: activeCar.mileage
+    };
+
+    // Вызываем функцию сохранения, которую передадим из App.tsx
+    if ((window as any).addServiceRecord) {
+      (window as any).addServiceRecord(activeCar.id, newRecord);
+      alert('Отчет сохранен в историю обслуживания автомобиля!');
     }
   };
 
@@ -87,11 +103,20 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
                 {msg.role === 'user' ? <User size={20} className="text-white" /> : <Bot size={20} />}
               </div>
               <div className="space-y-4">
-                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-800 border border-slate-100'}`}>
+                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-800 border border-slate-100'}`}>
                   {msg.content}
+                  
+                  {msg.role === 'assistant' && msg.id !== 'err' && (
+                    <button 
+                      onClick={() => saveToHistory(msg)}
+                      className="mt-4 w-full flex items-center justify-center gap-2 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-100"
+                    >
+                      <ShieldCheck size={14} /> Сохранить в историю ТО
+                    </button>
+                  )}
                 </div>
                 
-                {msg.results && (
+                {msg.results && msg.results.length > 0 && (
                   <div className="space-y-3">
                     {msg.results.map((res, idx) => (
                       <motion.div 
