@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Settings, CreditCard, Bell, Shield, History, ChevronRight, Plus, ArrowLeft, Car, Fuel, Cog, Calendar } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
-import { useForm } from 'react-hook-form@7.55.0';
+import { toast } from 'sonner';
+import { useForm } from 'react-hook-form';
 
 type ProfileView = 'list' | 'add';
 
