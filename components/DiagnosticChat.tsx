@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Bot, User, AlertTriangle, ShieldCheck, Clock, CreditCard, ChevronRight, Loader2 } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, ShieldCheck, Clock, CreditCard, ChevronRight, Loader2, Cpu } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { toast } from 'sonner';
 
 const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c`;
 
@@ -12,6 +13,8 @@ interface Message {
   results?: any[];
 }
 
+type AIProvider = 'gigachat' | 'askcodi' | 'openai';
+
 export const DiagnosticChat = ({ messages, setMessages, activeCar }: { 
   messages: Message[], 
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
@@ -19,6 +22,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
 }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [provider, setProvider] = useState<AIProvider>('gigachat');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +49,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
         },
         body: JSON.stringify({ 
           text: currentInput, 
+          provider: provider,
           carInfo: activeCar ? { 
             make: activeCar.make, 
             model: activeCar.model, 
@@ -56,7 +61,10 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
         })
       });
       
-      if (!res.ok) throw new Error('Ошибка сервера');
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Ошибка сервера');
+      }
       const data = await res.json();
       
       const assistantMsg: Message = { 
@@ -66,15 +74,20 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
         results: data.results || []
       };
       setMessages(prev => [...prev, assistantMsg]);
-    } catch (err) {
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Ошибка связи с механиком.' }]);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      toast.error(`Ошибка: ${err.message}`);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: `Ошибка связи с ИИ (${provider}). ${err.message}` }]);
     } finally {
       setIsTyping(false);
     }
   };
 
   const saveToHistory = (msg: Message) => {
-    if (!activeCar) return;
+    if (!activeCar) {
+      toast.error('Сначала добавьте автомобиль в гараж');
+      return;
+    }
     
     const newRecord = {
       id: Date.now().toString(),
@@ -83,18 +96,36 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
       description: msg.results?.[0]?.diagnosis || 'Анализ симптомов',
       cost: msg.results?.[0]?.estimatedCost || '0',
       details: msg.content,
-      mileage: activeCar.mileage
+      mileage: activeCar.mileage || 0
     };
 
-    // Вызываем функцию сохранения, которую передадим из App.tsx
     if ((window as any).addServiceRecord) {
       (window as any).addServiceRecord(activeCar.id, newRecord);
-      alert('Отчет сохранен в историю обслуживания автомобиля!');
+      toast.success('Отчет сохранен в историю обслуживания!');
     }
   };
 
   return (
     <div className="flex flex-col h-[calc(100vh-180px)] bg-slate-50 rounded-3xl overflow-hidden border border-slate-200">
+      {/* Provider Selector */}
+      <div className="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Cpu size={16} className="text-indigo-600" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Модель ИИ</span>
+        </div>
+        <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+          {(['gigachat', 'askcodi', 'openai'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setProvider(p)}
+              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${provider === p ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -129,27 +160,24 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
                         <div className="flex justify-between items-start">
                           <h4 className="font-bold text-slate-900 pr-4">{res.diagnosis}</h4>
                           <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-2 py-1 rounded-full uppercase">
-                            {Math.round(res.confidence * 100)}% Match
+                            {res.confidence ? `${Math.round(res.confidence * 100)}% Match` : 'AI Result'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 leading-relaxed">{res.description}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">{res.description || 'ИИ проанализировал данные и рекомендует обратить внимание на этот узел.'}</p>
                         
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                           <div className="flex items-center gap-2 text-[11px] text-slate-400">
                             <AlertTriangle size={14} className="text-amber-500" />
-                            <span>Риск: {res.risk}</span>
+                            <span>Риск: {res.risk || 'Средний'}</span>
                           </div>
                           <div className="flex items-center gap-2 text-[11px] text-slate-400">
                             <Clock size={14} className="text-indigo-400" />
-                            <span>Срок: {res.urgency}</span>
+                            <span>Срок: {res.urgency || 'В плановом порядке'}</span>
                           </div>
                           <div className="flex items-center gap-2 text-[11px] text-slate-400">
                             <CreditCard size={14} className="text-emerald-500" />
                             <span>Цена: {res.estimatedCost}</span>
                           </div>
-                          <button className="flex items-center justify-end gap-1 text-[11px] text-indigo-600 font-bold hover:underline">
-                            Инструкция <ChevronRight size={14} />
-                          </button>
                         </div>
                       </motion.div>
                     ))}
@@ -165,7 +193,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
               <Loader2 size={20} className="text-indigo-400 animate-spin" />
             </div>
             <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm italic text-xs text-slate-400">
-              ИИ анализирует вашу проблему...
+              {provider.toUpperCase()} анализирует проблему...
             </div>
           </div>
         )}
@@ -190,7 +218,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
           </button>
         </div>
         <p className="mt-2 text-[10px] text-center text-slate-400 uppercase tracking-widest font-bold">
-          ИИ может ошибаться. Для точной диагностики подключите OBD-II сканер.
+          ИИ {provider} может ошибаться. Для точной диагностики подключите OBD-II сканер.
         </p>
       </div>
     </div>
