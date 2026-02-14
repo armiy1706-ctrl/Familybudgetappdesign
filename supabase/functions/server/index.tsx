@@ -79,23 +79,67 @@ app.post(`${BASE_PATH}/telegram-auth`, async (c) => {
     const userId = tgUser.id;
     const email = `tg_${userId}@autoai.local`;
     const password = `tg_pass_${userId}_${botToken.slice(0, 10)}`;
+    const fullName = `${tgUser.first_name} ${tgUser.last_name || ''}`.trim();
+    const avatarUrl = tgUser.photo_url || '';
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Create user if not exists (ignore error if already exists)
-    await supabase.auth.admin.createUser({
+    // Create user if not exists or update metadata
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
       user_metadata: { 
-        full_name: `${tgUser.first_name} ${tgUser.last_name || ''}`.trim(),
+        full_name: fullName,
         telegram_id: userId,
-        username: tgUser.username
+        username: tgUser.username,
+        avatar_url: avatarUrl
       },
       email_confirm: true
-    }).catch(() => {});
+    }).catch(async () => {
+      // If user exists, update their metadata to sync avatar/name
+      const { data: { users } } = await supabase.auth.admin.listUsers();
+      const existingUser = users.find(u => u.email === email);
+      if (existingUser) {
+        return await supabase.auth.admin.updateUserById(existingUser.id, {
+          user_metadata: { 
+            full_name: fullName,
+            telegram_id: userId,
+            username: tgUser.username,
+            avatar_url: avatarUrl
+          }
+        });
+      }
+      return { data: null, error: 'User lookup failed' };
+    });
+
+    // Save/Sync profile to KV store for settings persistence
+    const userProfileKey = `profile:${userId}`;
+    const existingProfile = await kv.get(userProfileKey);
+    if (!existingProfile) {
+      await kv.set(userProfileKey, {
+        fullName,
+        avatarUrl,
+        telegramId: userId,
+        username: tgUser.username,
+        settings: {
+          notifications: true,
+          theme: 'light',
+          units: 'metric'
+        },
+        createdAt: new Date()
+      });
+    } else {
+      // Update basic info but keep settings
+      await kv.set(userProfileKey, {
+        ...existingProfile,
+        fullName,
+        avatarUrl,
+        username: tgUser.username
+      });
+    }
 
     return c.json({ email, password });
   } catch (err: any) {
@@ -120,11 +164,23 @@ app.post(`${BASE_PATH}/demo-auth`, async (c) => {
       password,
       user_metadata: { 
         full_name: 'Демо Пользователь',
-        is_demo: true
+        is_demo: true,
+        avatar_url: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=100&h=100&fit=crop'
       },
       email_confirm: true
-    }).catch(() => {
-      // User likely exists, that's fine
+    }).catch(async () => {
+      // Update metadata even for demo
+      const { data: { users } } = await supabase.auth.admin.listUsers();
+      const existingUser = users.find(u => u.email === email);
+      if (existingUser) {
+        await supabase.auth.admin.updateUserById(existingUser.id, {
+          user_metadata: { 
+            full_name: 'Демо Пользователь',
+            is_demo: true,
+            avatar_url: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=100&h=100&fit=crop'
+          }
+        });
+      }
     });
 
     return c.json({ email, password });
@@ -174,6 +230,39 @@ app.get(`${BASE_PATH}/health-report/:vin`, async (c) => {
 app.post(`${BASE_PATH}/update-health`, async (c) => {
   const { vin, score, issues } = await c.req.json();
   await kv.set(`health_${vin}`, { score, lastCheck: new Date(), issues });
+  return c.json({ success: true });
+});
+
+app.get(`${BASE_PATH}/user-data`, async (c) => {
+  const tgId = c.req.query('tgId');
+  if (!tgId) return c.json({ error: 'Missing tgId' }, 400);
+
+  const profile = await kv.get(`profile:${tgId}`);
+  const cars = await kv.get(`cars:${tgId}`) || [];
+
+  return c.json({ profile, cars });
+});
+
+app.post(`${BASE_PATH}/save-cars`, async (c) => {
+  const { tgId, cars } = await c.req.json();
+  if (!tgId) return c.json({ error: 'Missing tgId' }, 400);
+  await kv.set(`cars:${tgId}`, cars);
+  return c.json({ success: true });
+});
+
+app.post(`${BASE_PATH}/save-settings`, async (c) => {
+  const { tgId, settings } = await c.req.json();
+  if (!tgId) return c.json({ error: 'Missing tgId' }, 400);
+  
+  const userProfileKey = `profile:${tgId}`;
+  const existingProfile = await kv.get(userProfileKey) || {};
+  await kv.set(userProfileKey, {
+    ...existingProfile,
+    settings: {
+      ...(existingProfile.settings || {}),
+      ...settings
+    }
+  });
   return c.json({ success: true });
 });
 
