@@ -12,10 +12,11 @@ interface Message {
   results?: any[];
 }
 
-export const DiagnosticChat = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'assistant', content: 'Здравствуйте! Я ваш ИИ-автомеханик. Опишите симптомы неисправности вашего автомобиля или введите коды ошибок OBD-II.' }
-  ]);
+export const DiagnosticChat = ({ messages, setMessages, activeCar }: { 
+  messages: Message[], 
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+  activeCar: any
+}) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -39,7 +40,10 @@ export const DiagnosticChat = () => {
       const res = await fetch(`${API_URL}/diagnose`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: currentInput, carInfo: { make: 'Toyota', model: 'Camry', year: 2018 } })
+        body: JSON.stringify({ 
+          text: currentInput, 
+          carInfo: activeCar ? { make: activeCar.make, model: activeCar.model, year: activeCar.year } : null 
+        })
       });
       const data = await res.json();
       
