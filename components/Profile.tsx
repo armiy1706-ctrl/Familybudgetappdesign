@@ -106,7 +106,7 @@ export const Profile = ({ cars, onAddCar, activeCarIndex, onSwitchCar }: {
               <label className="block text-xs font-black uppercase text-slate-400 mb-2 tracking-widest">Модель авто</label>
               <div className="relative">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
-                   <div className="w-4.5 h-4.5 border-2 border-current rounded-sm opacity-50" />
+                   <div className="w-5 h-5 border-2 border-current rounded-sm opacity-50" />
                 </div>
                 <select 
                   {...register('model', { required: 'Выберите модель' })}
