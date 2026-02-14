@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Activity, MessageCircle, ShieldCheck, Zap, AlertCircle, PlayCircle } from 'lucide-react';
 import { supabase } from '../utils/supabase/client';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 export const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
