@@ -71,17 +71,25 @@ export default function App() {
 
   // Persistence: Save active car, chat and dashboard to localStorage
   useEffect(() => {
-    const savedCars = localStorage.getItem('autoai_cars');
-    if (savedCars) setCars(JSON.parse(savedCars));
+    try {
+      const savedCars = localStorage.getItem('autoai_cars');
+      if (savedCars) setCars(JSON.parse(savedCars));
 
-    const savedCarIndex = localStorage.getItem('autoai_active_car_index');
-    if (savedCarIndex !== null) setActiveCarIndex(parseInt(savedCarIndex));
-    
-    const savedChat = localStorage.getItem('autoai_chat_history');
-    if (savedChat) setChatMessages(JSON.parse(savedChat));
+      const savedCarIndex = localStorage.getItem('autoai_active_car_index');
+      if (savedCarIndex !== null) setActiveCarIndex(parseInt(savedCarIndex));
+      
+      const savedChat = localStorage.getItem('autoai_chat_history');
+      if (savedChat) setChatMessages(JSON.parse(savedChat));
 
-    const savedDash = localStorage.getItem('autoai_dashboard_data');
-    if (savedDash) setDashboardData(JSON.parse(savedDash));
+      const savedDash = localStorage.getItem('autoai_dashboard_data');
+      if (savedDash) setDashboardData(JSON.parse(savedDash));
+    } catch (e) {
+      console.error("Local storage restoration failed:", e);
+      // If JSON is corrupt, clear it to prevent further crashes
+      localStorage.removeItem('autoai_cars');
+      localStorage.removeItem('autoai_chat_history');
+      localStorage.removeItem('autoai_dashboard_data');
+    }
   }, []);
 
   useEffect(() => {
@@ -164,6 +172,12 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Safety timeout: stop loading after 5 seconds regardless of what happens
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading(false);
+      setIsAutoAuthenticating(false);
+    }, 5000);
+
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-web-app.js';
     script.async = true;
@@ -174,26 +188,38 @@ export default function App() {
         tg.expand();
       }
     };
+    script.onerror = () => {
+       console.error("Telegram script failed to load");
+       setIsLoading(false);
+    };
     document.body.appendChild(script);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (!session) {
-        setTimeout(() => handleTelegramAutoAuth(), 500);
+        // Give a bit more time for TG SDK to initialize before checking initData
+        setTimeout(() => handleTelegramAutoAuth(), 800);
       } else {
         fetchUserData(session.user);
         setIsLoading(false);
       }
+    }).catch(err => {
+      console.error("Supabase session error:", err);
+      setIsLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) fetchUserData(session.user);
+      if (session) {
+        fetchUserData(session.user);
+        setIsLoading(false);
+      }
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
       if (document.body.contains(script)) {
         document.body.removeChild(script);
