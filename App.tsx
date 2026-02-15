@@ -15,7 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Toaster } from './components/ui/sonner';
+import { Toaster } from 'sonner';
 import { Dashboard } from './components/Dashboard';
 import { DiagnosticChat } from './components/DiagnosticChat';
 import { OBDScanner } from './components/OBDScanner';
@@ -242,7 +242,7 @@ export default function App() {
   if (!session) return <><Auth /><Toaster position="bottom-right" richColors /></>;
 
   const navItems = [
-    { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Ра��очий стол', icon: LayoutDashboard },
     { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
     { id: 'obd', label: 'OBD-II Сканер', icon: Activity },
     { id: 'knowledge', label: 'База знаний', icon: BookOpen },
