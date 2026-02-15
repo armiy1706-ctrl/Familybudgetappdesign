@@ -12,12 +12,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  Wrench
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from 'sonner';
 import { Dashboard } from './components/Dashboard';
 import { DiagnosticChat } from './components/DiagnosticChat';
+import { MaintenanceLog } from './components/MaintenanceLog';
 import { OBDScanner } from './components/OBDScanner';
 import { KnowledgeBase } from './components/KnowledgeBase';
 import { Profile } from './components/Profile';
@@ -26,7 +28,7 @@ import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { ImageWithFallback } from './components/figma/ImageWithFallback';
 
-type Tab = 'dashboard' | 'diagnostics' | 'obd' | 'knowledge' | 'profile';
+type Tab = 'dashboard' | 'diagnostics' | 'obd' | 'knowledge' | 'profile' | 'maintenance';
 
 declare global {
   interface Window {
@@ -243,6 +245,7 @@ export default function App() {
 
   const navItems = [
     { id: 'dashboard', label: 'Ра��очий стол', icon: LayoutDashboard },
+    { id: 'maintenance', label: 'Журнал ТО', icon: Wrench },
     { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
     { id: 'obd', label: 'OBD-II Сканер', icon: Activity },
     { id: 'knowledge', label: 'База знаний', icon: BookOpen },
@@ -251,7 +254,7 @@ export default function App() {
 
   const bottomNavItems = [
     { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
-    { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
+    { id: 'maintenance', label: 'Журнал ТО', icon: Wrench },
     { id: 'profile', label: 'Профиль', icon: User },
   ];
 
@@ -339,6 +342,7 @@ export default function App() {
                   <p className="text-slate-400 text-xs font-medium">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
                 </div>
                 {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCar?.dashboardData} setDashboardData={updateDashboardData} onDeleteCar={deleteCar} />}
+                {activeTab === 'maintenance' && <MaintenanceLog activeCar={activeCar} dashboardData={activeCar?.dashboardData} setDashboardData={updateDashboardData} />}
                 {activeTab === 'diagnostics' && <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />}
                 {activeTab === 'obd' && <OBDScanner />}
                 {activeTab === 'knowledge' && <KnowledgeBase />}
