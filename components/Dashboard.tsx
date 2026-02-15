@@ -110,12 +110,20 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     return Math.round(Math.max(0, Math.min(100, (remaining / totalDistance) * 100)));
   };
 
-  const getBrakePercentage = () => {
-    if (!brakeStatus) return 100;
-    const totalDistance = brakeStatus.nextKm - brakeStatus.lastKm;
-    const remaining = brakeStatus.nextKm - currentOdometer;
-    return Math.round(Math.max(0, Math.min(100, (remaining / totalDistance) * 100)));
+  const getOverallHealthScore = () => {
+    const oil = getOilPercentage();
+    const brakes = getBrakePercentage();
+    return Math.round((oil + brakes) / 2);
   };
+
+  const getHealthInfo = (score: number) => {
+    if (score >= 85) return { label: 'Отлично', icon: ShieldCheck, color: 'text-emerald-400', desc: 'Системы в норме' };
+    if (score >= 60) return { label: 'Хорошо', icon: Activity, color: 'text-amber-400', desc: 'Требуется плановое ТО' };
+    return { label: 'Внимание', icon: AlertTriangle, color: 'text-rose-400', desc: 'Критический износ' };
+  };
+
+  const healthScore = getOverallHealthScore();
+  const healthInfo = getHealthInfo(healthScore);
 
   return (
     <div className="space-y-8 relative">
@@ -153,14 +161,14 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             <div>
               <p className="text-indigo-200 text-xs font-black uppercase tracking-[0.2em] mb-2">Общее состояние (Health Score)</p>
               <div className="flex items-center justify-center md:justify-start gap-4">
-                <span className="text-7xl font-black">94</span>
+                <span className="text-7xl font-black">{healthScore}</span>
                 <div className="h-12 w-1 bg-white/20 rounded-full"></div>
                 <div>
-                  <div className="flex items-center gap-1 text-emerald-400 font-bold">
-                    <ShieldCheck size={18} />
-                    <span>Отлично</span>
+                  <div className={`flex items-center gap-1 ${healthInfo.color} font-bold`}>
+                    <healthInfo.icon size={18} />
+                    <span>{healthInfo.label}</span>
                   </div>
-                  <p className="text-indigo-200 text-sm">Прогноз на 6 мес: Стабильно</p>
+                  <p className="text-indigo-200 text-sm">{healthInfo.desc}</p>
                 </div>
               </div>
             </div>
@@ -242,18 +250,37 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-1 rounded-full uppercase">2 Важных</span>
           </div>
           <div className="space-y-4">
-            <RecommendationItem 
-              title="Низкое давление в шинах" 
-              desc="Заднее правое колесо: 1.9 bar. Рекомендуется 2.3 bar." 
-              severity="Низкий" 
-              severityColor="text-blue-500"
-            />
-            <RecommendationItem 
-              title="Износ передних колодок" 
-              desc="Толщина фрикционного слоя 3мм. Замена через ~1000 км." 
-              severity="Средний" 
-              severityColor="text-amber-500"
-            />
+            {oilStatus && getOilPercentage() < 30 ? (
+              <RecommendationItem 
+                title="Низкий ресурс масла" 
+                desc={`Осталось ${Math.max(0, oilStatus.nextKm - currentOdometer).toLocaleString()} км. Рекомендуется планировать замену.`} 
+                severity="Высокий" 
+                severityColor="text-rose-500"
+              />
+            ) : null}
+            {brakeStatus && getBrakePercentage() < 30 ? (
+              <RecommendationItem 
+                title="Износ тормозных колодок" 
+                desc={`Ресурс тормозной системы: ${getBrakePercentage()}%. Эффективность торможения может быть снижена.`} 
+                severity="Средний" 
+                severityColor="text-amber-500"
+              />
+            ) : null}
+            {!oilStatus && !brakeStatus ? (
+              <RecommendationItem 
+                title="Данные не заполнены" 
+                desc="Введите данные о последнем ТО (масло, колодки) для точного расчета состояния." 
+                severity="Инфо" 
+                severityColor="text-indigo-500"
+              />
+            ) : (getOilPercentage() >= 30 && getBrakePercentage() >= 30) ? (
+              <RecommendationItem 
+                title="Системы в порядке" 
+                desc="Текущие показатели масла и тормозной системы находятся в пределах нормы." 
+                severity="Норма" 
+                severityColor="text-emerald-500"
+              />
+            ) : null}
           </div>
         </div>
       </div>
