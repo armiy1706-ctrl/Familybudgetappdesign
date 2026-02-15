@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner';
@@ -50,7 +51,7 @@ export default function App() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [clickCount, setClickCount] = useState(0);
 
-  const BUILD_VERSION = "4.2.6-stable";
+  const BUILD_VERSION = "4.2.8-stable";
 
   const handleVersionClick = () => {
     setClickCount(prev => {
@@ -64,45 +65,65 @@ export default function App() {
     });
   };
 
+  // Safe JSON Parse wrapper
+  const safeParse = (str: string | null, fallback: any) => {
+    if (!str) return fallback;
+    try {
+      // Clean up string from potential garbage characters
+      const cleanStr = str.trim();
+      return JSON.parse(cleanStr);
+    } catch (e) {
+      console.error("JSON Parse Error:", e, "on string:", str);
+      return fallback;
+    }
+  };
+
   // Persistence: Save active car and chat to localStorage
   useEffect(() => {
     try {
-      const savedCars = localStorage.getItem('autoai_cars');
-      if (savedCars) {
-        let parsedCars = JSON.parse(savedCars);
-        
-        // MIGRATION: Ensure all cars have the dashboardData structure
-        const migratedCars = parsedCars.map((car: any) => {
-          if (!car.dashboardData) {
-            return {
-              ...car,
-              dashboardData: {
-                currentOdometer: car.mileage || 0,
-                oilStatus: null,
-                brakeStatus: null
-              }
-            };
-          }
-          return car;
-        });
-        
-        setCars(migratedCars);
-      }
+      const savedCarsStr = localStorage.getItem('autoai_cars');
+      const parsedCars = safeParse(savedCarsStr, []);
+      
+      // MIGRATION: Ensure all cars have the dashboardData structure
+      const migratedCars = parsedCars.map((car: any) => {
+        if (!car || typeof car !== 'object') return null;
+        if (!car.dashboardData) {
+          return {
+            ...car,
+            dashboardData: {
+              currentOdometer: Number(car.mileage) || 0,
+              oilStatus: null,
+              brakeStatus: null
+            }
+          };
+        }
+        return car;
+      }).filter(Boolean);
+      
+      setCars(migratedCars);
 
       const savedCarIndex = localStorage.getItem('autoai_active_car_index');
-      if (savedCarIndex !== null) setActiveCarIndex(parseInt(savedCarIndex));
+      if (savedCarIndex !== null) {
+        const idx = parseInt(savedCarIndex);
+        if (!isNaN(idx)) setActiveCarIndex(idx);
+      }
       
-      const savedChat = localStorage.getItem('autoai_chat_history');
-      if (savedChat) setChatMessages(JSON.parse(savedChat));
+      const savedChatStr = localStorage.getItem('autoai_chat_history');
+      if (savedChatStr) {
+        const parsedChat = safeParse(savedChatStr, null);
+        if (Array.isArray(parsedChat)) setChatMessages(parsedChat);
+      }
     } catch (e) {
       console.error("Local storage restoration failed:", e);
-      localStorage.removeItem('autoai_cars');
-      localStorage.removeItem('autoai_chat_history');
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('autoai_cars', JSON.stringify(cars));
+    if (cars.length > 0) {
+      localStorage.setItem('autoai_cars', JSON.stringify(cars));
+    }
   }, [cars]);
 
   useEffect(() => {
@@ -110,7 +131,9 @@ export default function App() {
   }, [activeCarIndex]);
 
   useEffect(() => {
-    localStorage.setItem('autoai_chat_history', JSON.stringify(chatMessages));
+    if (chatMessages.length > 1) { // Don't save if only initial message
+      localStorage.setItem('autoai_chat_history', JSON.stringify(chatMessages));
+    }
   }, [chatMessages]);
 
   const fetchUserData = async (user: any) => {
@@ -120,13 +143,27 @@ export default function App() {
         const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/user-data?tgId=${tgId}`, {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         });
-        const data = await response.json();
-        if (data.cars) setCars(data.cars);
-        if (data.profile) setUserProfile(data.profile);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.cars && Array.isArray(data.cars)) setCars(data.cars);
+          if (data.profile) setUserProfile(data.profile);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch user data:', err);
     }
+  };
+
+  const deleteCar = (id: string) => {
+    if (!window.confirm("Вы уверены, что хотите удалить этот автомобиль из гаража?")) return;
+    setCars(prev => {
+      const newCars = prev.filter(c => c.id !== id);
+      const newIndex = Math.max(0, Math.min(activeCarIndex, newCars.length - 1));
+      setActiveCarIndex(newIndex);
+      syncCarsWithServer(newCars);
+      return newCars;
+    });
+    toast.success("Автомобиль удален из гаража");
   };
 
   const addCar = (car: any) => {
@@ -136,7 +173,7 @@ export default function App() {
         id: Date.now().toString(), 
         serviceHistory: [],
         dashboardData: {
-          currentOdometer: car.mileage || 0,
+          currentOdometer: Number(car.mileage) || 0,
           oilStatus: null,
           brakeStatus: null
         }
@@ -162,19 +199,6 @@ export default function App() {
     });
   };
 
-  const addServiceRecord = (carId: string, record: any) => {
-    setCars(prev => {
-      const newCars = prev.map(c => {
-        if (c.id === carId) {
-          return { ...c, serviceHistory: [record, ...(c.serviceHistory || [])] };
-        }
-        return c;
-      });
-      syncCarsWithServer(newCars);
-      return newCars;
-    });
-  };
-
   const syncCarsWithServer = (currentCars: any[]) => {
     const tgId = session?.user?.user_metadata?.telegram_id;
     if (tgId) {
@@ -188,10 +212,6 @@ export default function App() {
       });
     }
   };
-
-  useEffect(() => {
-    (window as any).addServiceRecord = addServiceRecord;
-  }, [cars, session]);
 
   const switchCar = (index: number) => {
     setActiveCarIndex(index);
@@ -334,24 +354,24 @@ export default function App() {
   const renderContent = () => {
     const activeCar = cars[activeCarIndex] || null;
     const activeCarData = activeCar?.dashboardData || {
-      currentOdometer: activeCar?.mileage || 0,
+      currentOdometer: Number(activeCar?.mileage) || 0,
       oilStatus: null,
       brakeStatus: null
     };
 
     switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCarData} setDashboardData={updateActiveCarDashboardData} />;
+      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCarData} setDashboardData={updateActiveCarDashboardData} onDeleteCar={deleteCar} />;
       case 'diagnostics': return <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />;
       case 'obd': return <OBDScanner />;
       case 'knowledge': return <KnowledgeBase />;
-      case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
+      case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} onDeleteCar={deleteCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
       case 'debug': return (
-        <div className="bg-white p-8 rounded-[32px] border border-slate-200 space-y-6">
+        <div className="bg-white p-8 rounded-[32px] border border-slate-200 space-y-6 overflow-y-auto max-h-full">
           <h2 className="text-xl font-black">Панель разработчика</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-xs font-bold text-slate-400 uppercase mb-2">System Info</p>
-              <pre className="text-[10px] text-slate-600 overflow-auto">
+              <pre className="text-[10px] text-slate-600 overflow-auto max-h-[200px]">
                 {JSON.stringify({
                   projectId,
                   userId: session?.user?.id,
@@ -364,6 +384,9 @@ export default function App() {
             <div className="space-y-3">
                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors">Сбросить локальные данные</button>
                <button onClick={() => setIsDemoMode(false)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors">Выйти из Demo-режима</button>
+               <div className="p-3 bg-indigo-50 rounded-xl text-[10px] text-indigo-700 font-medium">
+                 Версия: {BUILD_VERSION}
+               </div>
             </div>
           </div>
         </div>
