@@ -129,6 +129,28 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     }
   });
 
+  const onFuelSubmit = (data: FuelFormData) => {
+    if (data.odometer <= 0 || data.liters <= 0) {
+      toast.error('Введите корректные данные');
+      return;
+    }
+    const consumption = (data.liters / data.odometer) * 100;
+    const roundedConsumption = Math.round(consumption * 10) / 10;
+    setDashboardData({
+      ...dashboardData,
+      fuelConsumption: roundedConsumption
+    });
+    toast.success(`Расход рассчитан: ${roundedConsumption} л/100км`);
+    setShowFuelModal(false);
+    fuelForm.reset({ odometer: 0, liters: 0 });
+  };
+
+  const onOdometerSubmit = (data: { odometer: number }) => {
+    setDashboardData({ ...dashboardData, currentOdometer: Number(data.odometer) });
+    toast.success('Текущий пробег обновлен!');
+    setShowOdometerModal(false);
+  };
+
   const onBatterySubmit = (data: BatteryFormData) => {
     let baseResource = 5;
     
