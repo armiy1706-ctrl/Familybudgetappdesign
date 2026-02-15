@@ -395,7 +395,15 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f4f7fe] font-sans text-slate-900 overflow-hidden">
+    <div className="flex min-h-screen bg-[#020617] font-sans text-slate-100 overflow-hidden relative">
+      {/* Оригинальный фоновый паттерн */}
+      <div className="absolute inset-0 z-0 opacity-20 pointer-events-none" 
+        style={{ 
+          backgroundImage: `linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)`,
+          backgroundSize: '40px 40px' 
+        }} 
+      />
+      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-indigo-950/50 via-transparent to-slate-950 pointer-events-none" />
       <aside className={`hidden lg:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-72' : 'w-24'}`}>
         <div className="p-8 flex items-center gap-3 overflow-hidden">
           <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100">
@@ -437,30 +445,30 @@ export default function App() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-20 bg-white border-b border-slate-200 px-4 lg:px-12 flex items-center justify-between shrink-0 z-20">
+        <header className="h-20 bg-slate-900/50 backdrop-blur-md border-b border-white/5 px-4 lg:px-12 flex items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-2 lg:gap-4 flex-1">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"><Menu size={24} /></button>
+            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-400 hover:bg-white/5 rounded-xl transition-colors"><Menu size={24} /></button>
             <div className="max-w-[200px] w-full relative hidden xl:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-              <input type="text" placeholder="Поиск..." className="w-full bg-slate-50 border-none rounded-xl py-2 pl-10 pr-4 text-xs font-medium focus:ring-2 ring-indigo-500 outline-none transition-all" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+              <input type="text" placeholder="Поиск..." className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-xs font-medium focus:ring-2 ring-indigo-500 outline-none transition-all text-white placeholder:text-slate-600" />
             </div>
           </div>
 
           <div className="flex items-center justify-center gap-2 lg:gap-3 flex-1">
-            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-indigo-600 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100"><Activity size={20} className="text-white lg:scale-110" /></div>
-            <span className="font-black text-xl lg:text-2xl tracking-tight text-slate-900">AutoAI</span>
+            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-indigo-500 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20"><Activity size={20} className="text-white lg:scale-110" /></div>
+            <span className="font-black text-xl lg:text-2xl tracking-tight text-white">AutoAI</span>
           </div>
 
           <div className="flex items-center justify-end gap-2 md:gap-4 flex-1">
-            <button className="p-2.5 text-slate-400 hover:bg-slate-50 rounded-xl relative transition-all"><Bell size={18} /><span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-white"></span></button>
+            <button className="p-2.5 text-slate-400 hover:bg-white/5 rounded-xl relative transition-all"><Bell size={18} /><span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-[#020617]"></span></button>
             <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[10px] font-black uppercase text-slate-900 leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}</p>
-              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Online</p>
+              <p className="text-[10px] font-black uppercase text-white leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}</p>
+              <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest leading-none">Diagnostic Active</p>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12 bg-[#f4f7fe]">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12 bg-transparent relative z-10">
           <div className="max-w-6xl mx-auto h-full">
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="h-full">
