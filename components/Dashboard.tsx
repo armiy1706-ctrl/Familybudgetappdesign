@@ -1,24 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Heart, 
   Activity, 
-  Calendar, 
   Settings, 
-  AlertTriangle, 
-  ShieldCheck, 
   ChevronRight, 
   Fuel, 
-  Wrench, 
   Droplets, 
   X, 
   Gauge, 
   Zap, 
   Sparkles,
-  PlusCircle,
   PencilLine,
-  MousePointer2,
-  Trash2
+  MousePointer2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -29,12 +22,11 @@ interface ServiceFormData {
   interval: number;
 }
 
-export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar }: { 
+export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData }: { 
   onNavigate: (tab: string) => void, 
   activeCar?: any,
   dashboardData: any,
-  setDashboardData: (data: any) => void,
-  onDeleteCar: (id: string) => void
+  setDashboardData: (data: any) => void
 }) => {
   const [showOilModal, setShowOilModal] = useState(false);
   const [showBrakeModal, setShowBrakeModal] = useState(false);
@@ -87,236 +79,178 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     setShowOdometerModal(false);
   };
 
-  const getOilPercentage = () => {
-    if (!oilStatus?.nextKm) return 100;
-    const remaining = oilStatus.nextKm - currentOdometer;
-    const total = oilStatus.nextKm - oilStatus.lastKm;
+  const getPercentage = (status: any) => {
+    if (!status?.nextKm) return null;
+    const remaining = status.nextKm - currentOdometer;
+    const total = status.nextKm - status.lastKm;
     return Math.max(0, Math.min(100, Math.round((remaining / total) * 100)));
   };
 
-  const getBrakePercentage = () => {
-    if (!brakeStatus?.nextKm) return 100;
-    const remaining = brakeStatus.nextKm - currentOdometer;
-    const total = brakeStatus.nextKm - brakeStatus.lastKm;
-    return Math.max(0, Math.min(100, Math.round((remaining / total) * 100)));
-  };
-
-  const healthScore = Math.round((getOilPercentage() + getBrakePercentage()) / 2);
+  const oilPct = getPercentage(oilStatus);
+  const brakePct = getPercentage(brakeStatus);
 
   return (
-    <div className="space-y-8 h-full">
-      {/* Автомобиль Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          {activeCar && (
-            <button 
-              onClick={() => onDeleteCar(activeCar.id)}
-              className="p-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-colors active:scale-90 border border-rose-100 group shadow-sm"
-              title="Удалить автомобиль"
-            >
-              <Trash2 size={20} className="group-hover:rotate-12 transition-transform" />
-            </button>
-          )}
-          <div>
-            <h2 className="text-2xl lg:text-3xl font-black text-slate-900 leading-none">
-              {activeCar ? `${activeCar.make} ${activeCar.model}` : 'Гараж пуст'}
-            </h2>
-            <p className="text-slate-400 font-bold text-[10px] mt-2 uppercase tracking-widest">
-              {activeCar ? `VIN: ${activeCar.vin || '• • •'} | ${activeCar.year} год` : 'Добавьте ваше первое авто'}
-            </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center px-2">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 leading-tight">
+            {activeCar ? `${activeCar.make} ${activeCar.model}` : 'Гараж пуст'}
+          </h2>
+          <div className="flex items-center gap-2 mt-1">
+             <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold uppercase tracking-wider">
+               {activeCar?.year || '0000'}
+             </span>
+             <span className="text-slate-300 text-[10px] font-bold">
+               {activeCar?.vin || 'VIN не указан'}
+             </span>
           </div>
         </div>
-        <button className="p-4 bg-white border-2 border-slate-100 rounded-2xl shadow-sm text-slate-400 hover:text-indigo-600 transition-all active:scale-95">
-          <Settings size={20} />
+        <button className="p-3 bg-white border border-slate-100 rounded-2xl shadow-sm text-slate-400">
+          <Settings size={18} />
         </button>
       </div>
 
-      {/* ГЛАВНЫЙ ВИДЖЕТ (Health Score) */}
-      <div className="bg-indigo-600 rounded-[40px] p-6 lg:p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden border-4 border-white/10">
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          <div className="lg:col-span-7 space-y-8">
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <svg className="w-20 h-20 lg:w-24 lg:h-24 transform -rotate-90">
-                  <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/10" />
-                  <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * healthScore) / 100} className="text-white transition-all duration-1000" />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center font-black text-xl lg:text-2xl">{healthScore}%</span>
-              </div>
-              <div>
-                <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest mb-1">Health Score</p>
-                <h3 className="text-xl lg:text-2xl font-black">Состояние системы</h3>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-4">
-              <button 
-                onClick={() => onNavigate('diagnostics')}
-                className="bg-white text-indigo-600 px-6 lg:px-8 py-4 rounded-2xl font-black text-sm hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
-              >
-                <Sparkles size={20} />
-                ДИАГНОСТИКА ИИ
-              </button>
-
-              <button 
-                onClick={() => setShowOdometerModal(true)}
-                className="group bg-indigo-500/40 hover:bg-indigo-500/60 border-2 border-white/20 px-6 lg:px-8 py-4 rounded-2xl font-black text-sm transition-all active:scale-95 flex items-center gap-4"
-              >
-                <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/40 transition-colors">
-                  <Gauge size={18} />
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] opacity-60 leading-none mb-1 uppercase">Пробег</p>
-                  <p className="leading-none">{currentOdometer.toLocaleString()} км</p>
-                </div>
-                <PencilLine size={16} className="opacity-40 group-hover:opacity-100 transition-opacity" />
-              </button>
-            </div>
+      {/* Пробег и Быстрая кнопка */}
+      <div className="grid grid-cols-2 gap-4">
+        <button 
+          onClick={() => setShowOdometerModal(true)}
+          className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm text-left group active:scale-95 transition-all"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Gauge size={18}/></div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Пробег</span>
           </div>
-
-          <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-            <BigHealthButton 
-              label="МАСЛО" 
-              icon={Droplets} 
-              value={getOilPercentage()} 
-              subValue={oilStatus ? `через ${oilStatus.nextKm - currentOdometer} км` : null}
-              onClick={() => setShowOilModal(true)} 
-              color="bg-amber-400"
-            />
-            <BigHealthButton 
-              label="ТОРМОЗА" 
-              icon={Activity} 
-              value={getBrakePercentage()} 
-              subValue={brakeStatus ? `через ${brakeStatus.nextKm - currentOdometer} км` : null}
-              onClick={() => setShowBrakeModal(true)} 
-              color="bg-rose-400"
-            />
+          <div className="flex items-end justify-between">
+            <span className="text-xl font-black text-slate-900">{currentOdometer.toLocaleString()} <span className="text-xs text-slate-400">км</span></span>
+            <PencilLine size={14} className="text-slate-200 group-hover:text-indigo-400" />
           </div>
-        </div>
-        
-        {/* Декор фона */}
-        <div className="absolute -bottom-12 -right-12 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+        </button>
+
+        <button 
+          onClick={() => onNavigate('diagnostics')}
+          className="bg-indigo-600 p-5 rounded-[28px] shadow-lg shadow-indigo-100 text-left relative overflow-hidden active:scale-95 transition-all"
+        >
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-white/20 text-white rounded-xl"><Sparkles size={18}/></div>
+              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">OpenAI</span>
+            </div>
+            <span className="text-sm font-black text-white">ДИАГНОСТИКА</span>
+          </div>
+          <div className="absolute -right-4 -bottom-4 opacity-10 text-white"><Activity size={80} /></div>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
-         <div className="bg-white p-6 lg:p-8 rounded-[32px] border-2 border-slate-50 shadow-sm space-y-6">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Zap size={20}/></div>
-                <h4 className="font-black text-slate-900 uppercase text-xs tracking-wider">Электроника</h4>
-              </div>
-              <span className="text-emerald-500 font-black text-[10px]">OK</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1 uppercase">АКБ</p><p className="font-black text-slate-900">12.6V</p></div>
-               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1 uppercase">ГЕНЕРАТОР</p><p className="font-black text-slate-900">14.2V</p></div>
-            </div>
-         </div>
+      {/* СЕТКА ИЗ 4 КВАДРАТОВ */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Квадрат 1: Масло */}
+        <DashboardSquare 
+          label="МАСЛО" 
+          icon={Droplets} 
+          value={oilPct !== null ? `${oilPct}%` : "НЕТ ДАННЫХ"} 
+          subText={oilPct !== null ? `через ${oilStatus.nextKm - currentOdometer} км` : "Нажмите для ввода"}
+          color="text-amber-500"
+          bgColor="bg-amber-50"
+          onClick={() => setShowOilModal(true)}
+          isAlert={oilPct !== null && oilPct < 20}
+        />
 
-         <div className="bg-white p-6 lg:p-8 rounded-[32px] border-2 border-slate-50 shadow-sm flex items-center justify-between group cursor-pointer hover:border-indigo-100 transition-colors">
-            <div className="flex items-center gap-5">
-               <div className="w-14 h-14 lg:w-16 lg:h-16 bg-slate-100 rounded-[20px] lg:rounded-[24px] flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <Fuel size={28} />
-               </div>
-               <div>
-                  <h4 className="font-black text-slate-900 uppercase text-xs tracking-wider">Расход топлива</h4>
-                  <p className="text-slate-400 font-bold text-[10px] mt-1">Средний: 8.4 л / 100 км</p>
-               </div>
-            </div>
-            <ChevronRight size={20} className="text-slate-200 group-hover:text-indigo-600 transition-colors" />
-         </div>
+        {/* Квадрат 2: Тормоза */}
+        <DashboardSquare 
+          label="ТОРМОЗА" 
+          icon={Activity} 
+          value={brakePct !== null ? `${brakePct}%` : "НЕТ ДАННЫХ"} 
+          subText={brakePct !== null ? `через ${brakeStatus.nextKm - currentOdometer} км` : "Нажмите для ввода"}
+          color="text-rose-500"
+          bgColor="bg-rose-50"
+          onClick={() => setShowBrakeModal(true)}
+          isAlert={brakePct !== null && brakePct < 15}
+        />
+
+        {/* Квадрат 3: Электроника */}
+        <DashboardSquare 
+          label="ЗАРЯД" 
+          icon={Zap} 
+          value="12.6V" 
+          subText="Состояние: OK"
+          color="text-emerald-500"
+          bgColor="bg-emerald-50"
+        />
+
+        {/* Квадрат 4: Расход */}
+        <DashboardSquare 
+          label="РАСХОД" 
+          icon={Fuel} 
+          value="8.4л" 
+          subText="Средний на 100км"
+          color="text-indigo-500"
+          bgColor="bg-indigo-50"
+        />
       </div>
 
-      <OdometerModal 
-        isOpen={showOdometerModal} 
-        onClose={() => setShowOdometerModal(false)} 
-        currentOdometer={currentOdometer} 
-        onSubmit={onOdometerSubmit} 
-      />
-      
-      <ServiceModal 
-        isOpen={showOilModal} 
-        onClose={() => setShowOilModal(false)} 
-        title="Замена масла" 
-        icon={Droplets} 
-        form={oilForm}
-        onSubmit={onOilSubmit}
-      />
-      
-      <ServiceModal 
-        isOpen={showBrakeModal} 
-        onClose={() => setShowBrakeModal(false)} 
-        title="Замена колодок" 
-        icon={Activity} 
-        form={oilForm} 
-        onSubmit={onBrakeSubmit}
-      />
+      {/* Модалки */}
+      <ServiceModal isOpen={showOilModal} onClose={() => setShowOilModal(false)} title="Замена масла" icon={Droplets} form={oilForm} onSubmit={onOilSubmit} />
+      <ServiceModal isOpen={showBrakeModal} onClose={() => setShowBrakeModal(false)} title="Замена колодок" icon={Activity} form={oilForm} onSubmit={onBrakeSubmit} />
+      <OdometerModal isOpen={showOdometerModal} onClose={() => setShowOdometerModal(false)} currentOdometer={currentOdometer} onSubmit={onOdometerSubmit} />
     </div>
   );
 };
 
-const BigHealthButton = ({ label, icon: Icon, value, subValue, onClick, color }: any) => (
+const DashboardSquare = ({ label, icon: Icon, value, subText, color, bgColor, onClick, isAlert }: any) => (
   <motion.button
-    whileHover={{ y: -5, scale: 1.02 }}
-    whileTap={{ scale: 0.95 }}
+    whileTap={onClick ? { scale: 0.96 } : {}}
     onClick={onClick}
-    className="group relative bg-white/10 backdrop-blur-xl border-2 border-white/20 p-4 lg:p-5 rounded-[28px] flex flex-col items-start gap-4 transition-all hover:bg-white/20 hover:border-white/40 text-left overflow-hidden h-full"
+    className={`bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm text-left flex flex-col justify-between min-h-[160px] relative overflow-hidden group ${onClick ? 'cursor-pointer hover:border-slate-200' : 'cursor-default'}`}
   >
-    {!subValue && (
-      <div className="absolute top-3 right-3">
-        <motion.div 
-          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} 
-          transition={{ repeat: Infinity, duration: 1.5 }}
-          className="w-2 h-2 bg-white rounded-full shadow-[0_0_10px_white]"
-        />
+    <div className="flex justify-between items-start relative z-10">
+      <div className={`p-3 ${bgColor} ${color} rounded-2xl`}>
+        <Icon size={20} />
       </div>
-    )}
-
-    <div className={`p-2.5 lg:p-3 rounded-2xl ${color} text-white shadow-lg`}>
-      <Icon size={20} />
+      {isAlert && <div className="w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
+      {!subText.includes('км') && onClick && (
+        <div className="p-1 bg-slate-50 rounded-md">
+           <MousePointer2 size={10} className="text-slate-300" />
+        </div>
+      )}
     </div>
 
-    <div className="min-h-[60px]">
-      <p className="text-[9px] font-black uppercase tracking-widest text-white/60 mb-1">{label}</p>
-      <div className="flex items-baseline gap-1">
-        <span className="text-xl lg:text-2xl font-black">{value}%</span>
-      </div>
-      <p className="text-[8px] lg:text-[9px] font-bold text-white/40 mt-1 uppercase group-hover:text-white/80 transition-colors">
-        {subValue || "Нажмите для ввода"}
+    <div className="relative z-10">
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">{label}</p>
+      <h4 className={`text-xl font-black ${isAlert ? 'text-rose-600' : 'text-slate-900'}`}>{value}</h4>
+      <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase leading-tight truncate">
+        {subText}
       </p>
     </div>
 
-    {!subValue && (
-      <div className="mt-auto pt-2 flex items-center gap-1 text-[8px] font-black text-white/20 group-hover:text-white/60 uppercase transition-colors">
-        <MousePointer2 size={10} />
-        Кликните здесь
-      </div>
-    )}
+    {/* Декоративный фон для активных кнопок */}
+    {onClick && <div className="absolute -right-4 -bottom-4 w-12 h-12 bg-slate-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />}
   </motion.button>
 );
 
+// Модалки
 const ServiceModal = ({ isOpen, onClose, title, icon: Icon, form, onSubmit }: any) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-6 lg:p-8 w-full max-w-md shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-8 w-full max-w-sm shadow-2xl">
         <div className="flex justify-between items-center mb-8">
            <div className="flex items-center gap-4">
-              <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl"><Icon size={24} /></div>
-              <h3 className="text-xl font-black">{title}</h3>
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><Icon size={20} /></div>
+              <h3 className="text-lg font-black">{title}</h3>
            </div>
-           <button onClick={onClose} className="p-2 text-slate-300 hover:text-slate-600"><X size={24} /></button>
+           <button onClick={onClose} className="text-slate-300 hover:text-slate-600"><X size={24} /></button>
         </div>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Пробег при замене (км)</label>
-              <input {...form.register('odometer')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all outline-none" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Пробег при замене</label>
+              <input {...form.register('odometer')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 font-black text-lg outline-none focus:ring-2 ring-indigo-500/20 transition-all" />
            </div>
            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Интервал до следующей (км)</label>
-              <input {...form.register('interval')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all outline-none" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Интервал (км)</label>
+              <input {...form.register('interval')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 font-black text-lg outline-none focus:ring-2 ring-indigo-500/20 transition-all" />
            </div>
-           <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 active:scale-95 transition-all">СОХРАНИТЬ ДАННЫЕ</button>
+           <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black shadow-lg shadow-indigo-100 active:scale-95 transition-all">СОХРАНИТЬ</button>
         </form>
       </motion.div>
     </div>
@@ -327,25 +261,22 @@ const OdometerModal = ({ isOpen, onClose, currentOdometer, onSubmit }: any) => {
   const [val, setVal] = useState(currentOdometer);
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-8 lg:p-10 w-full max-w-sm shadow-2xl">
-        <h3 className="text-2xl font-black text-center mb-2">Новый пробег</h3>
-        <p className="text-slate-400 text-center text-sm mb-8 font-medium">Введите текущие данные прибора</p>
-        <div className="space-y-8">
-          <input 
-            type="number" 
-            value={val} 
-            onChange={(e) => setVal(Number(e.target.value))} 
-            className="w-full bg-slate-50 border-none rounded-[32px] py-8 text-4xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all outline-none"
-          />
-          <button 
-            onClick={() => onSubmit({ odometer: val })}
-            className="w-full py-6 bg-indigo-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-indigo-200 active:scale-95 transition-all"
-          >
-            ОБНОВИТЬ
-          </button>
-          <button onClick={onClose} className="w-full text-slate-300 font-bold text-sm">ОТМЕНА</button>
-        </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-10 w-full max-w-xs shadow-2xl">
+        <h3 className="text-xl font-black text-center mb-6">Текущий пробег</h3>
+        <input 
+          type="number" 
+          value={val} 
+          onChange={(e) => setVal(Number(e.target.value))} 
+          className="w-full bg-slate-50 border-none rounded-3xl py-8 text-3xl font-black text-center outline-none mb-8"
+        />
+        <button 
+          onClick={() => onSubmit({ odometer: val })}
+          className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black shadow-lg shadow-indigo-100 active:scale-95 transition-all"
+        >
+          ОБНОВИТЬ
+        </button>
+        <button onClick={onClose} className="w-full text-slate-300 font-bold text-xs mt-4">ОТМЕНА</button>
       </motion.div>
     </div>
   );
