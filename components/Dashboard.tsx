@@ -31,6 +31,13 @@ interface FuelFormData {
   liters: number;
 }
 
+interface BatteryFormData {
+  age: number;
+  climate: 'moderate' | 'cold' | 'very_cold' | 'hot';
+  engine: 'petrol' | 'diesel';
+  trips: 'short' | 'daily' | 'long' | 'rare';
+}
+
 export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar }: { 
   onNavigate: (tab: string) => void, 
   activeCar?: any,
@@ -42,11 +49,13 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   const [showBrakeModal, setShowBrakeModal] = useState(false);
   const [showOdometerModal, setShowOdometerModal] = useState(false);
   const [showFuelModal, setShowFuelModal] = useState(false);
+  const [showBatteryModal, setShowBatteryModal] = useState(false);
   
   const currentOdometer = Number(dashboardData?.currentOdometer) || (Number(activeCar?.mileage) || 0);
   const oilStatus = dashboardData?.oilStatus;
   const brakeStatus = dashboardData?.brakeStatus;
   const fuelConsumption = dashboardData?.fuelConsumption || 0;
+  const batteryResult = dashboardData?.batteryResult;
   
   const oilForm = useForm<ServiceFormData>({
     defaultValues: {
@@ -111,32 +120,44 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     }
   });
 
-  const onFuelSubmit = (data: FuelFormData) => {
-    // Basic calculation: (liters / distance) * 100
-    // But since we only have the current mileage, we might just use the entered values
-    // to estimate if we don't have a previous record. 
-    // Usually, consumption = (Liters / (Current_KM - Previous_KM)) * 100
-    // For simplicity as requested: we'll just calculate based on the provided inputs or use them.
-    // If the user provides "Mileage" and "Liters", we can assume it's for that specific trip.
-    // However, the prompt asks for "Mileage" and "Fuel added".
-    // Let's assume the user enters the trip mileage and liters to calculate.
-    
-    if (data.odometer <= 0 || data.liters <= 0) {
-      toast.error('Введите корректные данные');
-      return;
+  const batteryForm = useForm<BatteryFormData>({
+    defaultValues: {
+      age: 1,
+      climate: 'moderate',
+      engine: 'petrol',
+      trips: 'daily'
     }
+  });
+
+  const onBatterySubmit = (data: BatteryFormData) => {
+    let baseResource = 5;
     
-    const consumption = (data.liters / data.odometer) * 100;
-    const roundedConsumption = Math.round(consumption * 10) / 10;
+    // Logic as requested
+    if (data.climate === 'cold') baseResource -= 1;
+    if (data.climate === 'very_cold') baseResource -= 1.5;
+    if (data.climate === 'hot') baseResource -= 1;
+    if (data.engine === 'diesel') baseResource -= 0.5;
+    if (data.trips === 'short' || data.trips === 'rare') baseResource -= 0.5;
+
+    const remaining = baseResource - data.age;
+    const isOk = data.age < baseResource;
     
+    let risk = 'Низкий';
+    if (data.age >= baseResource) risk = 'Высокий';
+    else if (data.age >= baseResource - 1) risk = 'Средний';
+
     setDashboardData({
       ...dashboardData,
-      fuelConsumption: roundedConsumption
+      batteryResult: {
+        isOk,
+        remaining: Math.max(0, Math.round(remaining * 10) / 10),
+        risk,
+        age: data.age
+      }
     });
     
-    toast.success(`Расход рассчитан: ${roundedConsumption} л/100км`);
-    setShowFuelModal(false);
-    fuelForm.reset({ odometer: 0, liters: 0 });
+    toast.success('Состояние АКБ рассчитано!');
+    setShowBatteryModal(false);
   };
 
   const getOilPercentage = () => {
@@ -263,8 +284,10 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             <HealthMiniCard 
               icon={Zap} 
               label="АКБ" 
-              status="12.4V" 
-              color="text-emerald-400" 
+              status={batteryResult ? (batteryResult.isOk ? "Normal" : "Warning") : "---"} 
+              subStatus={batteryResult ? `Риск: ${batteryResult.risk}` : "Оценить"}
+              color={batteryResult ? (batteryResult.isOk ? "text-emerald-400" : "text-rose-400") : "text-emerald-400"} 
+              onClick={() => setShowBatteryModal(true)}
             />
             <HealthMiniCard 
               icon={Fuel} 
@@ -379,6 +402,105 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
         onSubmit={onBrakeSubmit}
         nextKm={nextBrakeServiceKm}
       />
+
+      <AnimatePresence>
+        {showBatteryModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowBatteryModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl relative z-10 overflow-hidden">
+              <button onClick={() => setShowBatteryModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+              
+              <div className="mb-6">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-4"><Zap size={24} /></div>
+                <h3 className="text-xl font-black text-slate-900">Проверка состояния АКБ</h3>
+                <p className="text-slate-500 text-xs font-medium">Оценка ресурса аккумулятора по параметрам</p>
+              </div>
+
+              <form onSubmit={batteryForm.handleSubmit(onBatterySubmit)} className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Возраст АКБ (лет)</label>
+                    <input {...batteryForm.register('age', { required: true, valueAsNumber: true })} type="number" step="0.5" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-emerald-500 outline-none transition-all" />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Регион / Климат</label>
+                    <select {...batteryForm.register('climate')} className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-emerald-500 outline-none transition-all appearance-none cursor-pointer">
+                      <option value="moderate">Умеренный климат</option>
+                      <option value="cold">Холодный (ниже -20°C)</option>
+                      <option value="very_cold">Очень холодный (ниже -30°C)</option>
+                      <option value="hot">Жаркий климат</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Тип двигателя</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl cursor-pointer has-[:checked]:bg-emerald-50 has-[:checked]:ring-2 ring-emerald-500 transition-all border border-transparent">
+                        <input {...batteryForm.register('engine')} type="radio" value="petrol" className="hidden" />
+                        <span className="text-xs font-bold text-slate-700">Бензин</span>
+                      </label>
+                      <label className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl cursor-pointer has-[:checked]:bg-emerald-50 has-[:checked]:ring-2 ring-emerald-500 transition-all border border-transparent">
+                        <input {...batteryForm.register('engine')} type="radio" value="diesel" className="hidden" />
+                        <span className="text-xs font-bold text-slate-700">Дизель</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Частота и тип поездок</label>
+                    <select {...batteryForm.register('trips')} className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-emerald-500 outline-none transition-all appearance-none cursor-pointer">
+                      <option value="short">Короткие поездки (5-10 км)</option>
+                      <option value="daily">Ежедневные (20-40 км)</option>
+                      <option value="long">Длинные поездки</option>
+                      <option value="rare">Редкая эксплуатация</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  {batteryResult && (
+                    <div className={`mb-6 p-5 rounded-[24px] border ${batteryResult.isOk ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'}`}>
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={`p-2 rounded-xl ${batteryResult.isOk ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                          {batteryResult.isOk ? <ShieldCheck size={18} /> : <AlertTriangle size={18} />}
+                        </div>
+                        <div>
+                          <p className={`text-xs font-black ${batteryResult.isOk ? 'text-emerald-700' : 'text-rose-700'} mb-1`}>
+                            {batteryResult.isOk ? '⏳ Аккумулятор в норме' : '🔋 Рекомендуется замена'}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                            {batteryResult.isOk 
+                              ? 'Замена пока не требуется, системы работают штатно.' 
+                              : 'Ресурс практически исчерпан. Возможны проблемы при запуске.'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-200/50">
+                        <div>
+                          <p className="text-[9px] font-black uppercase text-slate-400 mb-0.5">Остаточный ресурс</p>
+                          <p className="text-sm font-black text-slate-900">~{batteryResult.remaining} лет</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black uppercase text-slate-400 mb-0.5">Риск к зиме</p>
+                          <p className={`text-sm font-black ${
+                            batteryResult.risk === 'Высокий' ? 'text-rose-500' : 
+                            batteryResult.risk === 'Средний' ? 'text-amber-500' : 'text-emerald-500'
+                          }`}>{batteryResult.risk}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" className="w-full py-5 bg-emerald-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-[0.98]">
+                    Оценить состояние
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showFuelModal && (
