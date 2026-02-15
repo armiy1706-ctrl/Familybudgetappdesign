@@ -46,16 +46,11 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<any[]>([
     { id: '1', role: 'assistant', content: 'Здравствуйте! Я ваш ИИ-автомеханик. Опишите симптомы неисправности вашего автомобиля или введите коды ошибок OBD-II.' }
   ]);
-  const [dashboardData, setDashboardData] = useState<any>({
-    currentOdometer: 15000,
-    oilStatus: null,
-    brakeStatus: null
-  });
 
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [clickCount, setClickCount] = useState(0);
 
-  const BUILD_VERSION = "4.2.5-stable";
+  const BUILD_VERSION = "4.2.6-stable";
 
   const handleVersionClick = () => {
     setClickCount(prev => {
@@ -69,7 +64,7 @@ export default function App() {
     });
   };
 
-  // Persistence: Save active car, chat and dashboard to localStorage
+  // Persistence: Save active car and chat to localStorage
   useEffect(() => {
     try {
       const savedCars = localStorage.getItem('autoai_cars');
@@ -80,14 +75,10 @@ export default function App() {
       
       const savedChat = localStorage.getItem('autoai_chat_history');
       if (savedChat) setChatMessages(JSON.parse(savedChat));
-
-      const savedDash = localStorage.getItem('autoai_dashboard_data');
-      if (savedDash) setDashboardData(JSON.parse(savedDash));
     } catch (e) {
       console.error("Local storage restoration failed:", e);
       localStorage.removeItem('autoai_cars');
       localStorage.removeItem('autoai_chat_history');
-      localStorage.removeItem('autoai_dashboard_data');
     }
   }, []);
 
@@ -102,10 +93,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('autoai_chat_history', JSON.stringify(chatMessages));
   }, [chatMessages]);
-
-  useEffect(() => {
-    localStorage.setItem('autoai_dashboard_data', JSON.stringify(dashboardData));
-  }, [dashboardData]);
 
   const fetchUserData = async (user: any) => {
     try {
@@ -125,8 +112,32 @@ export default function App() {
 
   const addCar = (car: any) => {
     setCars(prev => {
-      const newCars = [...prev, { ...car, id: Date.now().toString(), serviceHistory: [] }];
+      const newCar = { 
+        ...car, 
+        id: Date.now().toString(), 
+        serviceHistory: [],
+        dashboardData: {
+          currentOdometer: car.mileage || 0,
+          oilStatus: null,
+          brakeStatus: null
+        }
+      };
+      const newCars = [...prev, newCar];
       if (prev.length === 0) setActiveCarIndex(0);
+      syncCarsWithServer(newCars);
+      return newCars;
+    });
+  };
+
+  const updateActiveCarDashboardData = (newData: any) => {
+    setCars(prev => {
+      const newCars = [...prev];
+      if (newCars[activeCarIndex]) {
+        newCars[activeCarIndex] = {
+          ...newCars[activeCarIndex],
+          dashboardData: newData
+        };
+      }
       syncCarsWithServer(newCars);
       return newCars;
     });
@@ -303,8 +314,14 @@ export default function App() {
 
   const renderContent = () => {
     const activeCar = cars[activeCarIndex] || null;
+    const activeCarData = activeCar?.dashboardData || {
+      currentOdometer: activeCar?.mileage || 0,
+      oilStatus: null,
+      brakeStatus: null
+    };
+
     switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={dashboardData} setDashboardData={setDashboardData} />;
+      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCarData} setDashboardData={updateActiveCarDashboardData} />;
       case 'diagnostics': return <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />;
       case 'obd': return <OBDScanner />;
       case 'knowledge': return <KnowledgeBase />;
