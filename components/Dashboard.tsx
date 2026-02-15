@@ -40,7 +40,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   const [showBrakeModal, setShowBrakeModal] = useState(false);
   const [showOdometerModal, setShowOdometerModal] = useState(false);
   
-  const currentOdometer = dashboardData?.currentOdometer || 0;
+  const currentOdometer = Number(dashboardData?.currentOdometer) || 0;
   const oilStatus = dashboardData?.oilStatus;
   const brakeStatus = dashboardData?.brakeStatus;
   
@@ -104,7 +104,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   const healthScore = Math.round((getOilPercentage() + getBrakePercentage()) / 2);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 h-full">
       {/* Автомобиль Header */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
@@ -118,10 +118,10 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             </button>
           )}
           <div>
-            <h2 className="text-3xl font-black text-slate-900 leading-none">
+            <h2 className="text-2xl lg:text-3xl font-black text-slate-900 leading-none">
               {activeCar ? `${activeCar.make} ${activeCar.model}` : 'Гараж пуст'}
             </h2>
-            <p className="text-slate-400 font-bold text-xs mt-2 uppercase tracking-widest">
+            <p className="text-slate-400 font-bold text-[10px] mt-2 uppercase tracking-widest">
               {activeCar ? `VIN: ${activeCar.vin || '• • •'} | ${activeCar.year} год` : 'Добавьте ваше первое авто'}
             </p>
           </div>
@@ -132,27 +132,27 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
       </div>
 
       {/* ГЛАВНЫЙ ВИДЖЕТ (Health Score) */}
-      <div className="bg-indigo-600 rounded-[40px] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden border-4 border-white/10">
+      <div className="bg-indigo-600 rounded-[40px] p-6 lg:p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden border-4 border-white/10">
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-7 space-y-8">
             <div className="flex items-center gap-6">
               <div className="relative">
-                <svg className="w-24 h-24 transform -rotate-90">
+                <svg className="w-20 h-20 lg:w-24 lg:h-24 transform -rotate-90">
                   <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/10" />
                   <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * healthScore) / 100} className="text-white transition-all duration-1000" />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center font-black text-2xl">{healthScore}%</span>
+                <span className="absolute inset-0 flex items-center justify-center font-black text-xl lg:text-2xl">{healthScore}%</span>
               </div>
               <div>
                 <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest mb-1">Health Score</p>
-                <h3 className="text-2xl font-black">Состояние системы</h3>
+                <h3 className="text-xl lg:text-2xl font-black">Состояние системы</h3>
               </div>
             </div>
 
             <div className="flex flex-wrap gap-4">
               <button 
                 onClick={() => onNavigate('diagnostics')}
-                className="bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black text-sm hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
+                className="bg-white text-indigo-600 px-6 lg:px-8 py-4 rounded-2xl font-black text-sm hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
               >
                 <Sparkles size={20} />
                 ДИАГНОСТИКА ИИ
@@ -160,7 +160,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
 
               <button 
                 onClick={() => setShowOdometerModal(true)}
-                className="group bg-indigo-500/40 hover:bg-indigo-500/60 border-2 border-white/20 px-8 py-4 rounded-2xl font-black text-sm transition-all active:scale-95 flex items-center gap-4"
+                className="group bg-indigo-500/40 hover:bg-indigo-500/60 border-2 border-white/20 px-6 lg:px-8 py-4 rounded-2xl font-black text-sm transition-all active:scale-95 flex items-center gap-4"
               >
                 <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/40 transition-colors">
                   <Gauge size={18} />
@@ -198,32 +198,32 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
         <div className="absolute -bottom-12 -right-12 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-         <div className="bg-white p-8 rounded-[32px] border-2 border-slate-50 shadow-sm space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
+         <div className="bg-white p-6 lg:p-8 rounded-[32px] border-2 border-slate-50 shadow-sm space-y-6">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Zap size={20}/></div>
-                <h4 className="font-black text-slate-900 uppercase text-sm tracking-wider">Электроника</h4>
+                <h4 className="font-black text-slate-900 uppercase text-xs tracking-wider">Электроника</h4>
               </div>
-              <span className="text-emerald-500 font-black text-xs">OK</span>
+              <span className="text-emerald-500 font-black text-[10px]">OK</span>
             </div>
             <div className="grid grid-cols-2 gap-4">
-               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1">АКБ</p><p className="font-black text-slate-900">12.6V</p></div>
-               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1">ГЕНЕРАТОР</p><p className="font-black text-slate-900">14.2V</p></div>
+               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1 uppercase">АКБ</p><p className="font-black text-slate-900">12.6V</p></div>
+               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1 uppercase">ГЕНЕРАТОР</p><p className="font-black text-slate-900">14.2V</p></div>
             </div>
          </div>
 
-         <div className="bg-white p-8 rounded-[32px] border-2 border-slate-50 shadow-sm flex items-center justify-between group cursor-pointer hover:border-indigo-100 transition-colors">
+         <div className="bg-white p-6 lg:p-8 rounded-[32px] border-2 border-slate-50 shadow-sm flex items-center justify-between group cursor-pointer hover:border-indigo-100 transition-colors">
             <div className="flex items-center gap-5">
-               <div className="w-16 h-16 bg-slate-100 rounded-[24px] flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <Fuel size={32} />
+               <div className="w-14 h-14 lg:w-16 lg:h-16 bg-slate-100 rounded-[20px] lg:rounded-[24px] flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                  <Fuel size={28} />
                </div>
                <div>
-                  <h4 className="font-black text-slate-900 uppercase text-sm tracking-wider">Расход топлива</h4>
-                  <p className="text-slate-400 font-bold text-xs mt-1">Средний: 8.4 л / 100 км</p>
+                  <h4 className="font-black text-slate-900 uppercase text-xs tracking-wider">Расход топлива</h4>
+                  <p className="text-slate-400 font-bold text-[10px] mt-1">Средний: 8.4 л / 100 км</p>
                </div>
             </div>
-            <ChevronRight size={24} className="text-slate-200 group-hover:text-indigo-600 transition-colors" />
+            <ChevronRight size={20} className="text-slate-200 group-hover:text-indigo-600 transition-colors" />
          </div>
       </div>
 
@@ -260,7 +260,7 @@ const BigHealthButton = ({ label, icon: Icon, value, subValue, onClick, color }:
     whileHover={{ y: -5, scale: 1.02 }}
     whileTap={{ scale: 0.95 }}
     onClick={onClick}
-    className="group relative bg-white/10 backdrop-blur-xl border-2 border-white/20 p-5 rounded-[28px] flex flex-col items-start gap-4 transition-all hover:bg-white/20 hover:border-white/40 text-left overflow-hidden h-full"
+    className="group relative bg-white/10 backdrop-blur-xl border-2 border-white/20 p-4 lg:p-5 rounded-[28px] flex flex-col items-start gap-4 transition-all hover:bg-white/20 hover:border-white/40 text-left overflow-hidden h-full"
   >
     {!subValue && (
       <div className="absolute top-3 right-3">
@@ -272,22 +272,22 @@ const BigHealthButton = ({ label, icon: Icon, value, subValue, onClick, color }:
       </div>
     )}
 
-    <div className={`p-3 rounded-2xl ${color} text-white shadow-lg`}>
-      <Icon size={24} />
+    <div className={`p-2.5 lg:p-3 rounded-2xl ${color} text-white shadow-lg`}>
+      <Icon size={20} />
     </div>
 
-    <div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">{label}</p>
+    <div className="min-h-[60px]">
+      <p className="text-[9px] font-black uppercase tracking-widest text-white/60 mb-1">{label}</p>
       <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-black">{value}%</span>
+        <span className="text-xl lg:text-2xl font-black">{value}%</span>
       </div>
-      <p className="text-[9px] font-bold text-white/40 mt-1 uppercase group-hover:text-white/80 transition-colors">
+      <p className="text-[8px] lg:text-[9px] font-bold text-white/40 mt-1 uppercase group-hover:text-white/80 transition-colors">
         {subValue || "Нажмите для ввода"}
       </p>
     </div>
 
     {!subValue && (
-      <div className="mt-auto pt-2 flex items-center gap-1 text-[9px] font-black text-white/20 group-hover:text-white/60 uppercase transition-colors">
+      <div className="mt-auto pt-2 flex items-center gap-1 text-[8px] font-black text-white/20 group-hover:text-white/60 uppercase transition-colors">
         <MousePointer2 size={10} />
         Кликните здесь
       </div>
@@ -299,7 +299,7 @@ const ServiceModal = ({ isOpen, onClose, title, icon: Icon, form, onSubmit }: an
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-8 w-full max-w-md shadow-2xl">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-6 lg:p-8 w-full max-w-md shadow-2xl">
         <div className="flex justify-between items-center mb-8">
            <div className="flex items-center gap-4">
               <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl"><Icon size={24} /></div>
@@ -310,11 +310,11 @@ const ServiceModal = ({ isOpen, onClose, title, icon: Icon, form, onSubmit }: an
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
            <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Пробег при замене (км)</label>
-              <input {...form.register('odometer')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all" />
+              <input {...form.register('odometer')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all outline-none" />
            </div>
            <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Интервал до следующей (км)</label>
-              <input {...form.register('interval')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all" />
+              <input {...form.register('interval')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all outline-none" />
            </div>
            <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 active:scale-95 transition-all">СОХРАНИТЬ ДАННЫЕ</button>
         </form>
@@ -328,7 +328,7 @@ const OdometerModal = ({ isOpen, onClose, currentOdometer, onSubmit }: any) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-8 lg:p-10 w-full max-w-sm shadow-2xl">
         <h3 className="text-2xl font-black text-center mb-2">Новый пробег</h3>
         <p className="text-slate-400 text-center text-sm mb-8 font-medium">Введите текущие данные прибора</p>
         <div className="space-y-8">
@@ -336,7 +336,7 @@ const OdometerModal = ({ isOpen, onClose, currentOdometer, onSubmit }: any) => {
             type="number" 
             value={val} 
             onChange={(e) => setVal(Number(e.target.value))} 
-            className="w-full bg-slate-50 border-none rounded-[32px] py-8 text-4xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all"
+            className="w-full bg-slate-50 border-none rounded-[32px] py-8 text-4xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all outline-none"
           />
           <button 
             onClick={() => onSubmit({ odometer: val })}
