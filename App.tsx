@@ -68,7 +68,26 @@ export default function App() {
   useEffect(() => {
     try {
       const savedCars = localStorage.getItem('autoai_cars');
-      if (savedCars) setCars(JSON.parse(savedCars));
+      if (savedCars) {
+        let parsedCars = JSON.parse(savedCars);
+        
+        // MIGRATION: Ensure all cars have the dashboardData structure
+        const migratedCars = parsedCars.map((car: any) => {
+          if (!car.dashboardData) {
+            return {
+              ...car,
+              dashboardData: {
+                currentOdometer: car.mileage || 0,
+                oilStatus: null,
+                brakeStatus: null
+              }
+            };
+          }
+          return car;
+        });
+        
+        setCars(migratedCars);
+      }
 
       const savedCarIndex = localStorage.getItem('autoai_active_car_index');
       if (savedCarIndex !== null) setActiveCarIndex(parseInt(savedCarIndex));
