@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Activity, Calendar, Settings, AlertTriangle, ShieldCheck, ChevronRight, Fuel, Wrench, Droplets, X, Gauge, Zap } from 'lucide-react';
+import { Heart, Activity, Calendar, Settings, AlertTriangle, ShieldCheck, ChevronRight, Fuel, Wrench, Droplets, X, Gauge, Zap, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 
@@ -97,13 +97,23 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     return Math.round(percentage);
   };
 
-  const getBrakePercentage = () => {
-    if (!brakeStatus) return 100;
-    const totalDistance = brakeStatus.nextKm - brakeStatus.lastKm;
-    const remaining = brakeStatus.nextKm - currentOdometer;
-    const percentage = Math.max(0, Math.min(100, (remaining / totalDistance) * 100));
-    return Math.round(percentage);
+  const getHealthScore = () => {
+    const oil = getOilPercentage();
+    const brake = getBrakePercentage();
+    // Base score is weighted: Oil (50%), Brakes (50%)
+    // If we had OBD errors, we'd subtract from here
+    const score = Math.round((oil * 0.5) + (brake * 0.5));
+    return score;
   };
+
+  const getHealthStatus = (score: number) => {
+    if (score > 85) return { label: 'Отличное', color: 'text-emerald-400', icon: ShieldCheck };
+    if (score > 60) return { label: 'Хорошее', color: 'text-amber-400', icon: Activity };
+    return { label: 'Требует внимания', color: 'text-rose-400', icon: AlertTriangle };
+  };
+
+  const healthScore = getHealthScore();
+  const healthStatus = getHealthStatus(healthScore);
 
   return (
     <div className="space-y-8 relative">
@@ -133,24 +143,28 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             <div>
               <p className="text-indigo-200 text-xs font-black uppercase tracking-[0.2em] mb-2">Общее состояние (Health Score)</p>
               <div className="flex items-center justify-center md:justify-start gap-4">
-                <span className="text-7xl font-black">94</span>
+                <span className="text-7xl font-black">{healthScore}</span>
                 <div className="h-12 w-1 bg-white/20 rounded-full"></div>
                 <div>
-                  <div className="flex items-center gap-1 text-emerald-400 font-bold">
-                    <ShieldCheck size={18} />
-                    <span>Отличное</span>
+                  <div className={`flex items-center gap-1 ${healthStatus.color} font-bold`}>
+                    <healthStatus.icon size={18} />
+                    <span>{healthStatus.label}</span>
                   </div>
-                  <p className="text-indigo-200 text-sm">Прогноз на 6 мес: Стабильно</p>
+                  <p className="text-indigo-200 text-sm">Прогноз на 6 мес: {healthScore > 80 ? 'Стабильно' : 'Снижение'}</p>
                 </div>
               </div>
             </div>
             <div className="flex flex-col items-center md:items-start gap-3">
               <button 
                 onClick={() => onNavigate('diagnostics')}
-                className="w-full md:w-auto bg-white text-indigo-600 px-6 py-4 rounded-2xl font-bold text-sm hover:bg-indigo-50 transition-all inline-flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                className="group relative w-full md:w-auto bg-white text-indigo-700 px-6 py-4 rounded-2xl font-black text-[11px] sm:text-sm hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] active:scale-95 overflow-hidden border border-white/50"
               >
-                Полная диагностика
-                <ChevronRight size={16} />
+                {/* Анимированный блик при наведении */}
+                <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/60 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
+                
+                <Sparkles size={18} className="text-indigo-400 group-hover:rotate-12 group-hover:scale-110 transition-all" />
+                <span className="relative z-10 uppercase tracking-tight">Обратиться к ИИ-автомеханику</span>
+                <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </button>
               
               <button 
