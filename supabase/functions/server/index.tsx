@@ -31,20 +31,31 @@ async function secureRequest(url: string, options: any, body?: string): Promise<
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 400) {
+          console.error(`API Error: ${res.statusCode} from ${url}. Data: ${data}`);
+          try {
+            const parsed = JSON.parse(data);
+            reject(new Error(`API Error: ${res.statusCode} - ${JSON.stringify(parsed)}`));
+          } catch {
+            reject(new Error(`API Error: ${res.statusCode} - ${data}`));
+          }
+          return;
+        }
+        
         try {
           const parsed = JSON.parse(data);
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`API Error: ${res.statusCode} - ${JSON.stringify(parsed)}`));
-          } else {
-            resolve(parsed);
-          }
+          resolve(parsed);
         } catch (e) {
+          // If not JSON but 200 OK (common for some GigaChat responses)
           resolve(data);
         }
       });
     });
 
-    req.on('error', (e) => reject(e));
+    req.on('error', (e) => {
+      console.error(`Request Error (${url}):`, e);
+      reject(e);
+    });
     if (body) req.write(body);
     req.end();
   });
@@ -52,7 +63,10 @@ async function secureRequest(url: string, options: any, body?: string): Promise<
 
 // --- AI Callers ---
 async function callGigaChat(prompt: string, text: string) {
+  if (!GIGACHAT_CREDENTIALS) throw new Error("GigaChat credentials not set");
+  
   const rqId = crypto.randomUUID();
+  console.log("GigaChat: Fetching token...");
   const tokenData = await secureRequest('https://gigachat.devices.sberbank.ru/api/v2/oauth', {
     method: 'POST',
     headers: {
@@ -64,6 +78,9 @@ async function callGigaChat(prompt: string, text: string) {
   }, 'scope=GIGACHAT_API_PERS');
   
   const token = tokenData.access_token;
+  if (!token) throw new Error("Failed to get GigaChat token");
+
+  console.log("GigaChat: Sending completion request...");
   const response = await secureRequest('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -75,10 +92,12 @@ async function callGigaChat(prompt: string, text: string) {
     messages: [{ role: 'system', content: prompt }, { role: 'user', content: text }],
     temperature: 0.7
   }));
-  return response.choices[0].message.content;
+  
+  return response.choices?.[0]?.message?.content || "Нет ответа от GigaChat";
 }
 
 async function callAskCodi(prompt: string, text: string) {
+  if (!ASKCODI_API_KEY) throw new Error("AskCodi API Key not set");
   const response = await fetch('https://api.askcodi.com/v1/ask', {
     method: 'POST',
     headers: {
@@ -95,6 +114,7 @@ async function callAskCodi(prompt: string, text: string) {
 }
 
 async function callOpenAI(prompt: string, text: string) {
+  if (!OPENAI_API_KEY) throw new Error("OpenAI API Key not set");
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -107,29 +127,55 @@ async function callOpenAI(prompt: string, text: string) {
     })
   });
   const data = await response.json();
-  return data.choices[0].message.content;
+  return data.choices?.[0]?.message?.content || "Нет ответа от OpenAI";
 }
 
 // Routes
 app.post('/diagnose', async (c) => {
   try {
     const { text, carInfo, provider = 'gigachat' } = await c.req.json();
-    const systemPrompt = `Ты — профессиональный автомеханик. Проанализируй симптомы и выдай результат JSON.
-    АВТО: ${carInfo?.make} ${carInfo?.model} ${carInfo?.year}. VIN: ${carInfo?.vin}. Пробег: ${carInfo?.mileage}.
-    JSON: {"message": "ответ", "results": [{"diagnosis": "проблема", "confidence": 0.9, "estimatedCost": "цена"}]}`;
+    console.log(`Diagnose request using ${provider} for text: ${text}`);
+
+    const systemPrompt = `Ты — профессиональный ИИ-автомеханик. Проанализируй симптомы и выдай подробный ответ пользователю.
+    Также ОБЯЗАТЕЛЬНО включи в ответ JSON-блок в формате:
+    {"results": [{"diagnosis": "название проблемы", "confidence": 0.95, "description": "краткое описание", "risk": "Высокий/Средний/Низкий", "urgency": "Срочно/Планово", "estimatedCost": "примерная цена"}]}
+    
+    Данные авто: ${carInfo?.make} ${carInfo?.model} ${carInfo?.year}. Пробег: ${carInfo?.mileage} км.`;
 
     let content = '';
-    if (provider === 'askcodi' && ASKCODI_API_KEY) {
+    if (provider === 'askcodi') {
       content = await callAskCodi(systemPrompt, text);
-    } else if (provider === 'openai' && OPENAI_API_KEY) {
+    } else if (provider === 'openai') {
       content = await callOpenAI(systemPrompt, text);
     } else {
       content = await callGigaChat(systemPrompt, text);
     }
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { message: content, results: [] };
-    return c.json(result);
+    // Более надежное извлечение JSON
+    let results = [];
+    let message = content;
+
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        // Пробуем найти самый длинный валидный JSON блок (на случай если AI вернул несколько {})
+        const possibleJson = jsonMatch[0];
+        try {
+          const parsed = JSON.parse(possibleJson);
+          results = parsed.results || (parsed.diagnosis ? [parsed] : []);
+          // Убираем JSON из текста сообщения, чтобы не дублировать
+          message = content.replace(possibleJson, '').trim();
+          if (!message) message = parsed.message || parsed.diagnosis || "Диагностика завершена.";
+        } catch (e) {
+          console.warn("Regex matched something but JSON.parse failed:", e.message);
+          // Если не распарсилось, оставляем все как текст
+        }
+      }
+    } catch (err) {
+      console.error("Extraction error:", err);
+    }
+
+    return c.json({ message, results });
   } catch (error) {
     console.error("Diagnose Error:", error);
     return c.json({ error: error.message }, 500);
