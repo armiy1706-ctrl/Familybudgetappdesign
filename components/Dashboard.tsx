@@ -26,6 +26,11 @@ interface ServiceFormData {
   interval: number;
 }
 
+interface FuelFormData {
+  odometer: number;
+  liters: number;
+}
+
 export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar }: { 
   onNavigate: (tab: string) => void, 
   activeCar?: any,
@@ -36,10 +41,12 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   const [showOilModal, setShowOilModal] = useState(false);
   const [showBrakeModal, setShowBrakeModal] = useState(false);
   const [showOdometerModal, setShowOdometerModal] = useState(false);
+  const [showFuelModal, setShowFuelModal] = useState(false);
   
   const currentOdometer = Number(dashboardData?.currentOdometer) || (Number(activeCar?.mileage) || 0);
   const oilStatus = dashboardData?.oilStatus;
   const brakeStatus = dashboardData?.brakeStatus;
+  const fuelConsumption = dashboardData?.fuelConsumption || 0;
   
   const oilForm = useForm<ServiceFormData>({
     defaultValues: {
@@ -97,10 +104,39 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     setShowBrakeModal(false);
   };
 
-  const onOdometerSubmit = (data: { odometer: number }) => {
-    setDashboardData({ ...dashboardData, currentOdometer: Number(data.odometer) });
-    toast.success('Текущий пробег обновлен!');
-    setShowOdometerModal(false);
+  const fuelForm = useForm<FuelFormData>({
+    defaultValues: {
+      odometer: currentOdometer,
+      liters: 0
+    }
+  });
+
+  const onFuelSubmit = (data: FuelFormData) => {
+    // Basic calculation: (liters / distance) * 100
+    // But since we only have the current mileage, we might just use the entered values
+    // to estimate if we don't have a previous record. 
+    // Usually, consumption = (Liters / (Current_KM - Previous_KM)) * 100
+    // For simplicity as requested: we'll just calculate based on the provided inputs or use them.
+    // If the user provides "Mileage" and "Liters", we can assume it's for that specific trip.
+    // However, the prompt asks for "Mileage" and "Fuel added".
+    // Let's assume the user enters the trip mileage and liters to calculate.
+    
+    if (data.odometer <= 0 || data.liters <= 0) {
+      toast.error('Введите корректные данные');
+      return;
+    }
+    
+    const consumption = (data.liters / data.odometer) * 100;
+    const roundedConsumption = Math.round(consumption * 10) / 10;
+    
+    setDashboardData({
+      ...dashboardData,
+      fuelConsumption: roundedConsumption
+    });
+    
+    toast.success(`Расход рассчитан: ${roundedConsumption} л/100км`);
+    setShowFuelModal(false);
+    fuelForm.reset({ odometer: 0, liters: 0 });
   };
 
   const getOilPercentage = () => {
@@ -224,8 +260,20 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               color={getBrakePercentage() < 20 ? "text-rose-400" : "text-amber-400"} 
               onClick={() => activeCar ? setShowBrakeModal(true) : toast.error('Добавьте авто')}
             />
-            <HealthMiniCard icon={Zap} label="АКБ" status="12.4V" color="text-emerald-400" />
-            <HealthMiniCard icon={Fuel} label="Расход" status="8.4л" color="text-indigo-200" />
+            <HealthMiniCard 
+              icon={Zap} 
+              label="АКБ" 
+              status="12.4V" 
+              color="text-emerald-400" 
+            />
+            <HealthMiniCard 
+              icon={Fuel} 
+              label="Расход" 
+              status={fuelConsumption > 0 ? `${fuelConsumption}л` : "--- л"} 
+              subStatus={fuelConsumption > 0 ? "л/100 км" : "Рассчитать"}
+              color="text-indigo-200" 
+              onClick={() => setShowFuelModal(true)}
+            />
           </div>
         </div>
         
@@ -331,6 +379,32 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
         onSubmit={onBrakeSubmit}
         nextKm={nextBrakeServiceKm}
       />
+
+      <AnimatePresence>
+        {showFuelModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowFuelModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl relative z-10">
+              <div className="mb-6">
+                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-4"><Fuel size={24} /></div>
+                <h3 className="text-xl font-black text-slate-900">Калькулятор расхода</h3>
+                <p className="text-slate-500 text-xs">Рассчитайте средний расход топлива</p>
+              </div>
+              <form onSubmit={fuelForm.handleSubmit(onFuelSubmit)} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest">Пробег на баке (км)</label>
+                  <input {...fuelForm.register('odometer', { required: true, valueAsNumber: true })} type="number" placeholder="Напр: 650" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest">Заправлено топлива (литры)</label>
+                  <input {...fuelForm.register('liters', { required: true, valueAsNumber: true })} type="number" step="0.01" placeholder="Напр: 45" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all" />
+                </div>
+                <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg">Рассчитать</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showOdometerModal && (
