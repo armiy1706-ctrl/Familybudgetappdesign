@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Bot, User, AlertTriangle, ShieldCheck, Clock, CreditCard, Loader2, Sparkles } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, ShieldCheck, Clock, CreditCard, Loader2, Sparkles, XCircle } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { toast } from 'sonner';
 
@@ -11,6 +11,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   results?: any[];
+  isError?: boolean;
 }
 
 export const DiagnosticChat = ({ messages, setMessages, activeCar }: { 
@@ -57,11 +58,14 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
         })
       });
       
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Ошибка сервера');
-      }
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw { 
+          message: data.details || data.error || 'Ошибка сервера', 
+          isQuota: data.isQuotaError 
+        };
+      }
       
       const assistantMsg: Message = { 
         id: (Date.now() + 1).toString(), 
@@ -72,8 +76,19 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
       console.error('Chat error:', err);
-      toast.error(`Ошибка: ${err.message}`);
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: `Ошибка связи с ИИ (OpenAI). ${err.message}` }]);
+      
+      const errorMessage = err.isQuota 
+        ? "Превышена квота OpenAI (429). Пожалуйста, проверьте баланс в личном кабинете OpenAI или обратитесь к администратору."
+        : `Ошибка: ${err.message || 'Сбой связи с сервером'}`;
+
+      toast.error(errorMessage);
+      
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        role: 'assistant', 
+        content: errorMessage,
+        isError: true
+      }]);
     } finally {
       setIsTyping(false);
     }
@@ -102,30 +117,30 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)] bg-slate-50 rounded-3xl overflow-hidden border border-slate-200">
+    <div className="flex flex-col h-[calc(100vh-180px)] bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
       <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles size={18} className="text-indigo-600" />
-          <span className="text-xs font-black uppercase tracking-widest text-slate-800">Интеллектуальный помощник OpenAI</span>
+          <span className="text-xs font-black uppercase tracking-widest text-slate-800">ИИ Автомеханик</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-          <span className="text-[10px] font-bold text-slate-400 uppercase">System Online</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">System Online</span>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-[#FBFCFE]">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-indigo-600' : 'bg-white text-indigo-600 border border-slate-200'}`}>
-                {msg.role === 'user' ? <User size={20} className="text-white" /> : <Bot size={20} />}
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-indigo-600' : msg.isError ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-white text-indigo-600 border border-slate-200'}`}>
+                {msg.role === 'user' ? <User size={20} className="text-white" /> : msg.isError ? <XCircle size={20} /> : <Bot size={20} />}
               </div>
               <div className="space-y-4">
-                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-800 border border-slate-100'}`}>
+                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-indigo-600 text-white' : msg.isError ? 'bg-white text-rose-700 border border-rose-100' : 'bg-white text-slate-800 border border-slate-100'}`}>
                   {msg.content}
                   
-                  {msg.role === 'assistant' && msg.id !== 'err' && (
+                  {msg.role === 'assistant' && !msg.isError && msg.id !== 'err' && (
                     <button 
                       onClick={() => saveToHistory(msg)}
                       className="mt-4 w-full flex items-center justify-center gap-2 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-100"
@@ -135,7 +150,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
                   )}
                 </div>
                 
-                {msg.results && msg.results.length > 0 && (
+                {msg.results && msg.results.length > 0 && !msg.isError && (
                   <div className="space-y-3">
                     {msg.results.map((res, idx) => (
                       <motion.div 
@@ -182,7 +197,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
             </div>
             <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm italic text-xs text-slate-400 flex items-center gap-2">
               <Sparkles size={14} className="text-indigo-600 animate-pulse" />
-              OpenAI анализирует симптомы...
+              ИИ анализирует симптомы...
             </div>
           </div>
         )}
@@ -207,7 +222,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
           </button>
         </div>
         <p className="mt-2 text-[10px] text-center text-slate-400 uppercase tracking-widest font-bold">
-          ИИ OpenAI может ошибаться. Для точной диагностики обратитесь к специалисту.
+          ИИ может ошибаться. Для точной диагностики обратитесь к специалисту.
         </p>
       </div>
     </div>
