@@ -1,495 +1,352 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  LayoutDashboard, 
-  MessageSquareCode, 
+  Heart, 
   Activity, 
-  BookOpen, 
-  User, 
-  LogOut, 
-  Bell, 
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Menu,
-  X
+  Calendar, 
+  Settings, 
+  AlertTriangle, 
+  ShieldCheck, 
+  ChevronRight, 
+  Fuel, 
+  Wrench, 
+  Droplets, 
+  X, 
+  Gauge, 
+  Zap, 
+  Sparkles,
+  PlusCircle,
+  PencilLine,
+  MousePointer2,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Toaster } from './components/ui/sonner';
-import { Dashboard } from './components/Dashboard';
-import { DiagnosticChat } from './components/DiagnosticChat';
-import { OBDScanner } from './components/OBDScanner';
-import { KnowledgeBase } from './components/KnowledgeBase';
-import { Profile } from './components/Profile';
-import { Auth } from './components/Auth';
-import { supabase } from './utils/supabase/client';
-import { projectId, publicAnonKey } from './utils/supabase/info';
+import { useForm } from 'react-hook-form';
 
-type Tab = 'dashboard' | 'diagnostics' | 'obd' | 'knowledge' | 'profile' | 'debug';
-
-declare global {
-  interface Window {
-    Telegram: any;
-  }
+interface ServiceFormData {
+  date: string;
+  odometer: number;
+  interval: number;
 }
 
-export default function App() {
-  const [session, setSession] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAutoAuthenticating, setIsAutoAuthenticating] = useState(false);
-  const [cars, setCars] = useState<any[]>([]);
-  const [activeCarIndex, setActiveCarIndex] = useState(0);
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const [chatMessages, setChatMessages] = useState<any[]>([
-    { id: '1', role: 'assistant', content: 'Здравствуйте! Я ваш ИИ-автомеханик. Опишите симптомы неисправности вашего автомобиля или введите коды ошибок OBD-II.' }
-  ]);
-
-  const [isDemoMode, setIsDemoMode] = useState(false);
-  const [clickCount, setClickCount] = useState(0);
-
-  const BUILD_VERSION = "4.2.6-stable";
-
-  const handleVersionClick = () => {
-    setClickCount(prev => {
-      const newCount = prev + 1;
-      if (newCount === 7) {
-        setIsDemoMode(true);
-        toast.info("Демо-режим активирован (Developer Access)");
-        return 0;
-      }
-      return newCount;
-    });
-  };
-
-  // Persistence: Save active car and chat to localStorage
-  useEffect(() => {
-    try {
-      const savedCars = localStorage.getItem('autoai_cars');
-      if (savedCars) {
-        let parsedCars = JSON.parse(savedCars);
-        
-        // MIGRATION: Ensure all cars have the dashboardData structure
-        const migratedCars = parsedCars.map((car: any) => {
-          if (!car.dashboardData) {
-            return {
-              ...car,
-              dashboardData: {
-                currentOdometer: car.mileage || 0,
-                oilStatus: null,
-                brakeStatus: null
-              }
-            };
-          }
-          return car;
-        });
-        
-        setCars(migratedCars);
-      }
-
-      const savedCarIndex = localStorage.getItem('autoai_active_car_index');
-      if (savedCarIndex !== null) setActiveCarIndex(parseInt(savedCarIndex));
-      
-      const savedChat = localStorage.getItem('autoai_chat_history');
-      if (savedChat) setChatMessages(JSON.parse(savedChat));
-    } catch (e) {
-      console.error("Local storage restoration failed:", e);
-      localStorage.removeItem('autoai_cars');
-      localStorage.removeItem('autoai_chat_history');
+export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar }: { 
+  onNavigate: (tab: string) => void, 
+  activeCar?: any,
+  dashboardData: any,
+  setDashboardData: (data: any) => void,
+  onDeleteCar: (id: string) => void
+}) => {
+  const [showOilModal, setShowOilModal] = useState(false);
+  const [showBrakeModal, setShowBrakeModal] = useState(false);
+  const [showOdometerModal, setShowOdometerModal] = useState(false);
+  
+  const currentOdometer = dashboardData?.currentOdometer || 0;
+  const oilStatus = dashboardData?.oilStatus;
+  const brakeStatus = dashboardData?.brakeStatus;
+  
+  const oilForm = useForm<ServiceFormData>({
+    defaultValues: {
+      date: oilStatus?.lastDate || new Date().toISOString().split('T')[0],
+      odometer: oilStatus?.lastKm || currentOdometer,
+      interval: (oilStatus?.nextKm - oilStatus?.lastKm) || 10000
     }
-  }, []);
+  });
 
-  useEffect(() => {
-    localStorage.setItem('autoai_cars', JSON.stringify(cars));
-  }, [cars]);
-
-  useEffect(() => {
-    localStorage.setItem('autoai_active_car_index', activeCarIndex.toString());
-  }, [activeCarIndex]);
-
-  useEffect(() => {
-    localStorage.setItem('autoai_chat_history', JSON.stringify(chatMessages));
-  }, [chatMessages]);
-
-  const fetchUserData = async (user: any) => {
-    try {
-      const tgId = user.user_metadata?.telegram_id;
-      if (tgId) {
-        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/user-data?tgId=${tgId}`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        });
-        const data = await response.json();
-        if (data.cars) setCars(data.cars);
-        if (data.profile) setUserProfile(data.profile);
-      }
-    } catch (err) {
-      console.error('Failed to fetch user data:', err);
-    }
-  };
-
-  const addCar = (car: any) => {
-    setCars(prev => {
-      const newCar = { 
-        ...car, 
-        id: Date.now().toString(), 
-        serviceHistory: [],
-        dashboardData: {
-          currentOdometer: car.mileage || 0,
-          oilStatus: null,
-          brakeStatus: null
-        }
-      };
-      const newCars = [...prev, newCar];
-      if (prev.length === 0) setActiveCarIndex(0);
-      syncCarsWithServer(newCars);
-      return newCars;
-    });
-  };
-
-  const updateActiveCarDashboardData = (newData: any) => {
-    setCars(prev => {
-      const newCars = [...prev];
-      if (newCars[activeCarIndex]) {
-        newCars[activeCarIndex] = {
-          ...newCars[activeCarIndex],
-          dashboardData: newData
-        };
-      }
-      syncCarsWithServer(newCars);
-      return newCars;
-    });
-  };
-
-  const addServiceRecord = (carId: string, record: any) => {
-    setCars(prev => {
-      const newCars = prev.map(c => {
-        if (c.id === carId) {
-          return { ...c, serviceHistory: [record, ...(c.serviceHistory || [])] };
-        }
-        return c;
-      });
-      syncCarsWithServer(newCars);
-      return newCars;
-    });
-  };
-
-  const syncCarsWithServer = (currentCars: any[]) => {
-    const tgId = session?.user?.user_metadata?.telegram_id;
-    if (tgId) {
-      fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/save-cars`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({ tgId, cars: currentCars })
-      });
-    }
-  };
-
-  useEffect(() => {
-    (window as any).addServiceRecord = addServiceRecord;
-  }, [cars, session]);
-
-  const switchCar = (index: number) => {
-    setActiveCarIndex(index);
-    setActiveTab('dashboard');
-  };
-
-  useEffect(() => {
-    const safetyTimeout = setTimeout(() => {
-      setIsLoading(false);
-      setIsAutoAuthenticating(false);
-    }, 5000);
-
-    const script = document.createElement('script');
-    script.src = 'https://telegram.org/js/telegram-web-app.js';
-    script.async = true;
-    script.onload = () => {
-      const tg = (window as any).Telegram?.WebApp;
-      if (tg) {
-        tg.ready();
-        tg.expand();
-      }
-    };
-    script.onerror = () => {
-       console.error("Telegram script failed to load");
-       setIsLoading(false);
-    };
-    document.body.appendChild(script);
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (!session) {
-        setTimeout(() => handleTelegramAutoAuth(), 800);
-      } else {
-        fetchUserData(session.user);
-        setIsLoading(false);
-      }
-    }).catch(err => {
-      console.error("Supabase session error:", err);
-      setIsLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        fetchUserData(session.user);
-        setIsLoading(false);
+  const onOilSubmit = (data: ServiceFormData) => {
+    setDashboardData({
+      ...dashboardData,
+      oilStatus: {
+        lastDate: data.date,
+        lastKm: Number(data.odometer),
+        nextKm: Number(data.odometer) + Number(data.interval)
       }
     });
+    toast.success('Данные о масле сохранены!');
+    setShowOilModal(false);
+  };
 
-    return () => {
-      clearTimeout(safetyTimeout);
-      subscription.unsubscribe();
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
+  const onBrakeSubmit = (data: ServiceFormData) => {
+    setDashboardData({
+      ...dashboardData,
+      brakeStatus: {
+        lastDate: data.date,
+        lastKm: Number(data.odometer),
+        nextKm: Number(data.odometer) + Number(data.interval)
       }
-    };
-  }, []);
-
-  const handleTelegramAutoAuth = async () => {
-    try {
-      const tg = (window as any).Telegram?.WebApp;
-      if (tg && tg.initData && tg.initData.length > 0) {
-        setIsAutoAuthenticating(true);
-        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/telegram-auth`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`
-          },
-          body: JSON.stringify({ initData: tg.initData })
-        });
-        
-        if (!response.ok) {
-           setIsLoading(false);
-           setIsAutoAuthenticating(false);
-           return;
-        }
-
-        const data = await response.json();
-        if (data.email && data.password) {
-          const { error } = await supabase.auth.signInWithPassword({
-            email: data.email,
-            password: data.password
-          });
-          if (error) throw error;
-          toast.success('Авторизация Telegram выполнена успешно');
-        }
-      } else {
-        setIsLoading(false);
-      }
-    } catch (err: any) {
-      console.error('Auto-auth failed:', err);
-      setIsLoading(false);
-    } finally {
-      setIsAutoAuthenticating(false);
-    }
+    });
+    toast.success('Данные о тормозах сохранены!');
+    setShowBrakeModal(false);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast.success('Вы вышли из системы');
+  const onOdometerSubmit = (data: { odometer: number }) => {
+    setDashboardData({
+      ...dashboardData,
+      currentOdometer: Number(data.odometer)
+    });
+    toast.success('Пробег обновлен!');
+    setShowOdometerModal(false);
   };
 
-  if (isLoading || isAutoAuthenticating) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-        <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-        {isAutoAuthenticating && <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">Синхронизация с Telegram...</p>}
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <>
-        <Auth />
-        <Toaster position="bottom-right" richColors />
-      </>
-    );
-  }
-
-  const navItems = [
-    { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
-    { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
-    { id: 'obd', label: 'OBD-II Сканер', icon: Activity },
-    { id: 'knowledge', label: 'База знаний', icon: BookOpen },
-    { id: 'profile', label: 'Мой профиль', icon: User },
-    ...(isDemoMode ? [{ id: 'debug', label: 'Debug Panel', icon: Activity }] : []),
-  ];
-
-  const bottomNavItems = [
-    { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
-    { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
-    { id: 'profile', label: 'Профиль', icon: User },
-    ...(isDemoMode ? [{ id: 'debug', label: 'Debug', icon: Activity }] : []),
-  ];
-
-  const renderContent = () => {
-    const activeCar = cars[activeCarIndex] || null;
-    const activeCarData = activeCar?.dashboardData || {
-      currentOdometer: activeCar?.mileage || 0,
-      oilStatus: null,
-      brakeStatus: null
-    };
-
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCarData} setDashboardData={updateActiveCarDashboardData} />;
-      case 'diagnostics': return <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />;
-      case 'obd': return <OBDScanner />;
-      case 'knowledge': return <KnowledgeBase />;
-      case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
-      case 'debug': return (
-        <div className="bg-white p-8 rounded-[32px] border border-slate-200 space-y-6">
-          <h2 className="text-xl font-black">Панель разработчика</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-xs font-bold text-slate-400 uppercase mb-2">System Info</p>
-              <pre className="text-[10px] text-slate-600 overflow-auto">
-                {JSON.stringify({
-                  projectId,
-                  userId: session?.user?.id,
-                  tgId: session?.user?.user_metadata?.telegram_id,
-                  carsCount: cars.length,
-                  platform: window.Telegram?.WebApp?.platform || 'Web'
-                }, null, 2)}
-              </pre>
-            </div>
-            <div className="space-y-3">
-               <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors">Сбросить локальные данные</button>
-               <button onClick={() => setIsDemoMode(false)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors">Выйти из Demo-режима</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
+  const getOilPercentage = () => {
+    if (!oilStatus?.nextKm) return 100;
+    const remaining = oilStatus.nextKm - currentOdometer;
+    const total = oilStatus.nextKm - oilStatus.lastKm;
+    return Math.max(0, Math.min(100, Math.round((remaining / total) * 100)));
   };
+
+  const getBrakePercentage = () => {
+    if (!brakeStatus?.nextKm) return 100;
+    const remaining = brakeStatus.nextKm - currentOdometer;
+    const total = brakeStatus.nextKm - brakeStatus.lastKm;
+    return Math.max(0, Math.min(100, Math.round((remaining / total) * 100)));
+  };
+
+  const healthScore = Math.round((getOilPercentage() + getBrakePercentage()) / 2);
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
-      <aside className={`hidden lg:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-72' : 'w-24'}`}>
-        <div className="p-8 flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100">
-            <Activity size={24} className="text-white" />
-          </div>
-          {isSidebarOpen && <span className="font-black text-2xl tracking-tight text-slate-900">AutoAI</span>}
-        </div>
-
-        <nav className="flex-1 px-4 space-y-2 py-4">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as Tab)}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+    <div className="space-y-8">
+      {/* Автомобиль Header */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          {activeCar && (
+            <button 
+              onClick={() => onDeleteCar(activeCar.id)}
+              className="p-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-colors active:scale-90 border border-rose-100 group shadow-sm"
+              title="Удалить автомобиль"
             >
-              <item.icon size={22} className="shrink-0" />
-              {isSidebarOpen && <span className="truncate">{item.label}</span>}
+              <Trash2 size={20} className="group-hover:rotate-12 transition-transform" />
             </button>
-          ))}
-        </nav>
-
-        <div className="p-4 mt-auto">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="w-full flex items-center justify-center p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-slate-600 transition-all">
-            {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-          </button>
-          <div className="mt-4 p-4 bg-slate-50 rounded-2xl flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600 shrink-0 capitalize">
-              {session?.user?.user_metadata?.avatar_url ? <img src={session.user.user_metadata.avatar_url} className="w-full h-full rounded-full" /> : (session?.user?.email?.[0] || 'A')}
-            </div>
-            {isSidebarOpen && (
-              <div className="truncate">
-                <p className="text-xs font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name || 'User'}</p>
-                <p className="text-[10px] text-slate-400 truncate">{session?.user?.email}</p>
-              </div>
-            )}
-            {isSidebarOpen && <LogOut onClick={handleLogout} size={16} className="text-slate-300 ml-auto cursor-pointer hover:text-rose-500 transition-colors" />}
+          )}
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 leading-none">
+              {activeCar ? `${activeCar.make} ${activeCar.model}` : 'Гараж пуст'}
+            </h2>
+            <p className="text-slate-400 font-bold text-xs mt-2 uppercase tracking-widest">
+              {activeCar ? `VIN: ${activeCar.vin || '• • •'} | ${activeCar.year} год` : 'Добавьте ваше первое авто'}
+            </p>
           </div>
         </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-20 bg-white border-b border-slate-200 px-4 lg:px-12 flex items-center justify-between shrink-0 z-20">
-          <div className="flex items-center gap-2 lg:gap-4 flex-1">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"><Menu size={24} /></button>
-            <div className="max-w-[200px] w-full relative hidden xl:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-              <input type="text" placeholder="Поиск..." className="w-full bg-slate-50 border-none rounded-xl py-2 pl-10 pr-4 text-xs font-medium focus:ring-2 ring-indigo-500 outline-none transition-all" />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-2 lg:gap-3 flex-1">
-            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-indigo-600 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100"><Activity size={20} className="text-white lg:scale-110" /></div>
-            <span className="font-black text-xl lg:text-2xl tracking-tight text-slate-900">AutoAI</span>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 md:gap-4 flex-1">
-            <button className="p-2.5 text-slate-400 hover:bg-slate-50 rounded-xl relative transition-all"><Bell size={18} /><span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-white"></span></button>
-            <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[10px] font-black uppercase text-slate-900 leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}</p>
-              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Online</p>
-            </div>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12 bg-[#fcfcfd]">
-          <div className="max-w-6xl mx-auto h-full">
-            <AnimatePresence mode="wait">
-              <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="h-full">
-                <div className="mb-8">
-                  <h1 className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">
-                    {navItems.find(i => i.id === activeTab)?.label}
-                    {isDemoMode && <span className="ml-2 bg-amber-100 text-amber-700 text-[9px] px-2 py-0.5 rounded-full border border-amber-200">DEV MODE</span>}
-                  </h1>
-                  <p onClick={handleVersionClick} className="text-slate-400 text-xs font-medium cursor-pointer select-none active:opacity-50 transition-opacity">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
-                </div>
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </main>
-
-        <nav className="lg:hidden fixed bottom-6 left-6 right-6 h-20 bg-white/80 backdrop-blur-xl border border-white/20 shadow-2xl rounded-[32px] flex items-center justify-around px-6 z-50">
-          {bottomNavItems.map((item) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className="relative flex flex-col items-center justify-center gap-1 group">
-              <div className={`p-3 rounded-2xl transition-all duration-300 ${activeTab === item.id ? 'bg-indigo-600 text-white -translate-y-2 shadow-lg shadow-indigo-200' : 'text-slate-400 hover:text-slate-600'}`}><item.icon size={22} /></div>
-              {activeTab === item.id && <motion.span layoutId="bottom-label" className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{item.label}</motion.span>}
-            </button>
-          ))}
-        </nav>
+        <button className="p-4 bg-white border-2 border-slate-100 rounded-2xl shadow-sm text-slate-400 hover:text-indigo-600 transition-all active:scale-95">
+          <Settings size={20} />
+        </button>
       </div>
 
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-[60] lg:hidden">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsMobileMenuOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.aside initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} className="absolute left-0 top-0 bottom-0 w-80 bg-white p-8 flex flex-col shadow-2xl">
-              <div className="flex justify-between items-center mb-12">
-                <div className="flex items-center gap-3"><div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg"><Activity size={24} className="text-white" /></div><span className="font-black text-2xl tracking-tight">AutoAI</span></div>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+      {/* ГЛАВНЫЙ ВИДЖЕТ (Health Score) */}
+      <div className="bg-indigo-600 rounded-[40px] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden border-4 border-white/10">
+        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div className="lg:col-span-7 space-y-8">
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <svg className="w-24 h-24 transform -rotate-90">
+                  <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/10" />
+                  <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * healthScore) / 100} className="text-white transition-all duration-1000" />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center font-black text-2xl">{healthScore}%</span>
               </div>
-              <nav className="flex-1 space-y-2">
-                {navItems.map((item) => (
-                  <button key={item.id} onClick={() => { setActiveTab(item.id as Tab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}><item.icon size={22} /><span>{item.label}</span></button>
-                ))}
-              </nav>
-              <div className="mt-auto pt-8 border-t border-slate-100 flex items-center gap-4">
-                <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">{session?.user?.email?.[0]?.toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name}</p>
-                  <button onClick={handleLogout} className="text-xs font-bold text-rose-500 hover:text-rose-600">Выйти</button>
+              <div>
+                <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest mb-1">Health Score</p>
+                <h3 className="text-2xl font-black">Состояние системы</h3>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4">
+              <button 
+                onClick={() => onNavigate('diagnostics')}
+                className="bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black text-sm hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
+              >
+                <Sparkles size={20} />
+                ДИАГНОСТИКА ИИ
+              </button>
+
+              <button 
+                onClick={() => setShowOdometerModal(true)}
+                className="group bg-indigo-500/40 hover:bg-indigo-500/60 border-2 border-white/20 px-8 py-4 rounded-2xl font-black text-sm transition-all active:scale-95 flex items-center gap-4"
+              >
+                <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/40 transition-colors">
+                  <Gauge size={18} />
                 </div>
-              </div>
-            </motion.aside>
+                <div className="text-left">
+                  <p className="text-[10px] opacity-60 leading-none mb-1 uppercase">Пробег</p>
+                  <p className="leading-none">{currentOdometer.toLocaleString()} км</p>
+                </div>
+                <PencilLine size={16} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+              </button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
-      <Toaster position="bottom-right" richColors />
+
+          <div className="lg:col-span-5 grid grid-cols-2 gap-4">
+            <BigHealthButton 
+              label="МАСЛО" 
+              icon={Droplets} 
+              value={getOilPercentage()} 
+              subValue={oilStatus ? `через ${oilStatus.nextKm - currentOdometer} км` : null}
+              onClick={() => setShowOilModal(true)} 
+              color="bg-amber-400"
+            />
+            <BigHealthButton 
+              label="ТОРМОЗА" 
+              icon={Activity} 
+              value={getBrakePercentage()} 
+              subValue={brakeStatus ? `через ${brakeStatus.nextKm - currentOdometer} км` : null}
+              onClick={() => setShowBrakeModal(true)} 
+              color="bg-rose-400"
+            />
+          </div>
+        </div>
+        
+        {/* Декор фона */}
+        <div className="absolute -bottom-12 -right-12 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+         <div className="bg-white p-8 rounded-[32px] border-2 border-slate-50 shadow-sm space-y-6">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Zap size={20}/></div>
+                <h4 className="font-black text-slate-900 uppercase text-sm tracking-wider">Электроника</h4>
+              </div>
+              <span className="text-emerald-500 font-black text-xs">OK</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1">АКБ</p><p className="font-black text-slate-900">12.6V</p></div>
+               <div className="p-4 bg-slate-50 rounded-2xl"><p className="text-[10px] font-bold text-slate-400 mb-1">ГЕНЕРАТОР</p><p className="font-black text-slate-900">14.2V</p></div>
+            </div>
+         </div>
+
+         <div className="bg-white p-8 rounded-[32px] border-2 border-slate-50 shadow-sm flex items-center justify-between group cursor-pointer hover:border-indigo-100 transition-colors">
+            <div className="flex items-center gap-5">
+               <div className="w-16 h-16 bg-slate-100 rounded-[24px] flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                  <Fuel size={32} />
+               </div>
+               <div>
+                  <h4 className="font-black text-slate-900 uppercase text-sm tracking-wider">Расход топлива</h4>
+                  <p className="text-slate-400 font-bold text-xs mt-1">Средний: 8.4 л / 100 км</p>
+               </div>
+            </div>
+            <ChevronRight size={24} className="text-slate-200 group-hover:text-indigo-600 transition-colors" />
+         </div>
+      </div>
+
+      <OdometerModal 
+        isOpen={showOdometerModal} 
+        onClose={() => setShowOdometerModal(false)} 
+        currentOdometer={currentOdometer} 
+        onSubmit={onOdometerSubmit} 
+      />
+      
+      <ServiceModal 
+        isOpen={showOilModal} 
+        onClose={() => setShowOilModal(false)} 
+        title="Замена масла" 
+        icon={Droplets} 
+        form={oilForm}
+        onSubmit={onOilSubmit}
+      />
+      
+      <ServiceModal 
+        isOpen={showBrakeModal} 
+        onClose={() => setShowBrakeModal(false)} 
+        title="Замена колодок" 
+        icon={Activity} 
+        form={oilForm} 
+        onSubmit={onBrakeSubmit}
+      />
     </div>
   );
-}
+};
+
+const BigHealthButton = ({ label, icon: Icon, value, subValue, onClick, color }: any) => (
+  <motion.button
+    whileHover={{ y: -5, scale: 1.02 }}
+    whileTap={{ scale: 0.95 }}
+    onClick={onClick}
+    className="group relative bg-white/10 backdrop-blur-xl border-2 border-white/20 p-5 rounded-[28px] flex flex-col items-start gap-4 transition-all hover:bg-white/20 hover:border-white/40 text-left overflow-hidden h-full"
+  >
+    {!subValue && (
+      <div className="absolute top-3 right-3">
+        <motion.div 
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} 
+          transition={{ repeat: Infinity, duration: 1.5 }}
+          className="w-2 h-2 bg-white rounded-full shadow-[0_0_10px_white]"
+        />
+      </div>
+    )}
+
+    <div className={`p-3 rounded-2xl ${color} text-white shadow-lg`}>
+      <Icon size={24} />
+    </div>
+
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">{label}</p>
+      <div className="flex items-baseline gap-1">
+        <span className="text-2xl font-black">{value}%</span>
+      </div>
+      <p className="text-[9px] font-bold text-white/40 mt-1 uppercase group-hover:text-white/80 transition-colors">
+        {subValue || "Нажмите для ввода"}
+      </p>
+    </div>
+
+    {!subValue && (
+      <div className="mt-auto pt-2 flex items-center gap-1 text-[9px] font-black text-white/20 group-hover:text-white/60 uppercase transition-colors">
+        <MousePointer2 size={10} />
+        Кликните здесь
+      </div>
+    )}
+  </motion.button>
+);
+
+const ServiceModal = ({ isOpen, onClose, title, icon: Icon, form, onSubmit }: any) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-8 w-full max-w-md shadow-2xl">
+        <div className="flex justify-between items-center mb-8">
+           <div className="flex items-center gap-4">
+              <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl"><Icon size={24} /></div>
+              <h3 className="text-xl font-black">{title}</h3>
+           </div>
+           <button onClick={onClose} className="p-2 text-slate-300 hover:text-slate-600"><X size={24} /></button>
+        </div>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+           <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Пробег при замене (км)</label>
+              <input {...form.register('odometer')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all" />
+           </div>
+           <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Интервал до следующей (км)</label>
+              <input {...form.register('interval')} type="number" className="w-full bg-slate-50 border-none rounded-2xl py-5 px-6 text-xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all" />
+           </div>
+           <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 active:scale-95 transition-all">СОХРАНИТЬ ДАННЫЕ</button>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
+const OdometerModal = ({ isOpen, onClose, currentOdometer, onSubmit }: any) => {
+  const [val, setVal] = useState(currentOdometer);
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl">
+        <h3 className="text-2xl font-black text-center mb-2">Новый пробег</h3>
+        <p className="text-slate-400 text-center text-sm mb-8 font-medium">Введите текущие данные прибора</p>
+        <div className="space-y-8">
+          <input 
+            type="number" 
+            value={val} 
+            onChange={(e) => setVal(Number(e.target.value))} 
+            className="w-full bg-slate-50 border-none rounded-[32px] py-8 text-4xl font-black text-center focus:ring-4 ring-indigo-500/10 transition-all"
+          />
+          <button 
+            onClick={() => onSubmit({ odometer: val })}
+            className="w-full py-6 bg-indigo-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-indigo-200 active:scale-95 transition-all"
+          >
+            ОБНОВИТЬ
+          </button>
+          <button onClick={onClose} className="w-full text-slate-300 font-bold text-sm">ОТМЕНА</button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
