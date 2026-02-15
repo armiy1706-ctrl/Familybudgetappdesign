@@ -429,11 +429,11 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
         {showBatteryModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowBatteryModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl relative z-10 overflow-hidden">
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl relative z-10 overflow-y-auto max-h-[90vh]">
               <button onClick={() => setShowBatteryModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
               
               <div className="mb-6">
-                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-4"><Zap size={24} /></div>
+                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-4"><Zap size={24} /></div>
                 <h3 className="text-xl font-black text-slate-900">Проверка состояния АКБ</h3>
                 <p className="text-slate-500 text-xs font-medium">Оценка ресурса аккумулятора по параметрам</p>
               </div>
@@ -442,12 +442,12 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                 <div className="space-y-4">
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Возраст АКБ (лет)</label>
-                    <input {...batteryForm.register('age', { required: true, valueAsNumber: true })} type="number" step="0.5" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-emerald-500 outline-none transition-all" />
+                    <input {...batteryForm.register('age', { required: true, valueAsNumber: true })} type="number" step="0.5" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all" />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Регион / Климат</label>
-                    <select {...batteryForm.register('climate')} className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-emerald-500 outline-none transition-all appearance-none cursor-pointer">
+                    <select {...batteryForm.register('climate')} className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all appearance-none cursor-pointer">
                       <option value="moderate">Умеренный климат</option>
                       <option value="cold">Холодный (ниже -20°C)</option>
                       <option value="very_cold">Очень холодный (ниже -30°C)</option>
@@ -458,11 +458,11 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Тип двигателя</label>
                     <div className="grid grid-cols-2 gap-3">
-                      <label className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl cursor-pointer has-[:checked]:bg-emerald-50 has-[:checked]:ring-2 ring-emerald-500 transition-all border border-transparent">
+                      <label className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl cursor-pointer has-[:checked]:bg-indigo-50 has-[:checked]:ring-2 ring-indigo-500 transition-all border border-transparent">
                         <input {...batteryForm.register('engine')} type="radio" value="petrol" className="hidden" />
                         <span className="text-xs font-bold text-slate-700">Бензин</span>
                       </label>
-                      <label className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl cursor-pointer has-[:checked]:bg-emerald-50 has-[:checked]:ring-2 ring-emerald-500 transition-all border border-transparent">
+                      <label className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl cursor-pointer has-[:checked]:bg-indigo-50 has-[:checked]:ring-2 ring-indigo-500 transition-all border border-transparent">
                         <input {...batteryForm.register('engine')} type="radio" value="diesel" className="hidden" />
                         <span className="text-xs font-bold text-slate-700">Дизель</span>
                       </label>
@@ -471,7 +471,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
 
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Частота и тип поездок</label>
-                    <select {...batteryForm.register('trips')} className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-emerald-500 outline-none transition-all appearance-none cursor-pointer">
+                    <select {...batteryForm.register('trips')} className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all appearance-none cursor-pointer">
                       <option value="short">Короткие поездки (5-10 км)</option>
                       <option value="daily">Ежедневные (20-40 км)</option>
                       <option value="long">Длинные поездки</option>
@@ -482,13 +482,13 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
 
                 <div className="pt-2">
                   {batteryResult && (
-                    <div className={`mb-6 p-5 rounded-[24px] border ${batteryResult.isOk ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'}`}>
+                    <div className={`mb-6 p-5 rounded-[24px] border ${batteryResult.isOk ? 'bg-indigo-50/50 border-indigo-100' : 'bg-rose-50/50 border-rose-100'}`}>
                       <div className="flex items-start gap-3 mb-3">
-                        <div className={`p-2 rounded-xl ${batteryResult.isOk ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                        <div className={`p-2 rounded-xl ${batteryResult.isOk ? 'bg-indigo-100 text-indigo-600' : 'bg-rose-100 text-rose-600'}`}>
                           {batteryResult.isOk ? <ShieldCheck size={18} /> : <AlertTriangle size={18} />}
                         </div>
                         <div>
-                          <p className={`text-xs font-black ${batteryResult.isOk ? 'text-emerald-700' : 'text-rose-700'} mb-1`}>
+                          <p className={`text-xs font-black ${batteryResult.isOk ? 'text-indigo-700' : 'text-rose-700'} mb-1`}>
                             {batteryResult.isOk ? '⏳ Аккумулятор в норме' : '🔋 Рекомендуется замена'}
                           </p>
                           <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
@@ -507,14 +507,14 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                           <p className="text-[9px] font-black uppercase text-slate-400 mb-0.5">Риск к зиме</p>
                           <p className={`text-sm font-black ${
                             batteryResult.risk === 'Высокий' ? 'text-rose-500' : 
-                            batteryResult.risk === 'Средний' ? 'text-amber-500' : 'text-emerald-500'
+                            batteryResult.risk === 'Средний' ? 'text-amber-500' : 'text-indigo-500'
                           }`}>{batteryResult.risk}</p>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <button type="submit" className="w-full py-5 bg-emerald-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-[0.98]">
+                  <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-[0.98]">
                     Оценить состояние
                   </button>
                 </div>
