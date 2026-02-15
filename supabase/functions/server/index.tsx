@@ -18,25 +18,36 @@ const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 
 async function callOpenAI(prompt: string, text: string) {
   if (!OPENAI_API_KEY) throw new Error("OpenAI API Key missing");
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [{ role: 'system', content: prompt }, { role: 'user', content: text }],
-    })
-  });
   
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
-  }
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini', // Try a cheaper/more available model first or as fallback
+        messages: [{ role: 'system', content: prompt }, { role: 'user', content: text }],
+        temperature: 0.7,
+      })
+    });
+    
+    if (response.status === 429) {
+      throw new Error("OpenAI Quota Exceeded: Пожалуйста, проверьте баланс вашего аккаунта OpenAI или используйте другой ключ.");
+    }
 
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || "Нет ответа от ИИ";
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "Нет ответа от ИИ";
+  } catch (error) {
+    console.error("OpenAI call failed:", error);
+    throw error;
+  }
 }
 
 // Routes
@@ -45,7 +56,7 @@ app.post('/diagnose', async (c) => {
     const body = await c.req.json();
     const { text, carInfo } = body;
 
-    const systemPrompt = `Ты — профессиональный ИИ-автомеханик. Проанализируй симптомы и выдай подробный ответ.
+    const systemPrompt = `Ты — профессиональный ИИ-автомеханик. Проанализируй симптомы и выдай подробный ответ на русском языке.
     В конце ответа ОБЯЗАТЕЛЬНО добавь JSON блок в ОДНУ СТРОКУ:
     {"results": [{"diagnosis": "название", "confidence": 0.9, "description": "описание", "risk": "Средний", "urgency": "Планово", "estimatedCost": "1000 руб"}]}
     
@@ -73,7 +84,12 @@ app.post('/diagnose', async (c) => {
     return c.json({ message: message || "Анализ завершен.", results });
   } catch (error) {
     console.error("Diagnose Route Error:", error);
-    return c.json({ error: "Ошибка диагностики: " + error.message }, 500);
+    // Return a structured error response that the frontend can display nicely
+    return c.json({ 
+      error: "Ошибка ИИ-диагностики", 
+      details: error.message,
+      isQuotaError: error.message.includes("Quota Exceeded")
+    }, 500);
   }
 })
 
@@ -124,6 +140,27 @@ app.post('/telegram-auth', async (c) => {
     return c.json({ email, password });
   } catch (error) {
     console.error("Telegram Auth Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+})
+
+app.post('/demo-auth', async (c) => {
+  try {
+    const email = 'demo@autoai.app';
+    const password = 'demo-password-123';
+
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { data: userList } = await supabase.auth.admin.listUsers();
+    
+    if (!userList?.users.find(u => u.email === email)) {
+      await supabase.auth.admin.createUser({
+        email, password,
+        user_metadata: { telegram_id: 'demo_user', full_name: 'Demo User' },
+        email_confirm: true
+      });
+    }
+    return c.json({ email, password });
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 })
