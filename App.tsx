@@ -167,6 +167,13 @@ export default function App() {
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-web-app.js';
     script.async = true;
+    script.onload = () => {
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg) {
+        tg.ready();
+        tg.expand();
+      }
+    };
     document.body.appendChild(script);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -195,10 +202,11 @@ export default function App() {
   }, []);
 
   const handleTelegramAutoAuth = async () => {
-    const tg = window.Telegram?.WebApp;
-    if (tg && tg.initData && tg.initData.length > 0) {
-      setIsAutoAuthenticating(true);
-      try {
+    try {
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg && tg.initData && tg.initData.length > 0) {
+        setIsAutoAuthenticating(true);
+        console.log("Telegram initData found, authenticating...");
         const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/telegram-auth`, {
           method: 'POST',
           headers: {
@@ -207,6 +215,15 @@ export default function App() {
           },
           body: JSON.stringify({ initData: tg.initData })
         });
+        
+        if (!response.ok) {
+           const errText = await response.text();
+           console.error("Server auth error:", errText);
+           setIsLoading(false);
+           setIsAutoAuthenticating(false);
+           return;
+        }
+
         const data = await response.json();
         if (data.email && data.password) {
           const { error } = await supabase.auth.signInWithPassword({
@@ -216,14 +233,15 @@ export default function App() {
           if (error) throw error;
           toast.success('Авторизация Telegram выполнена успешно');
         }
-      } catch (err: any) {
-        console.error('Auto-auth failed:', err);
-      } finally {
-        setIsAutoAuthenticating(false);
+      } else {
+        console.log("No Telegram initData found or not in Telegram environment");
         setIsLoading(false);
       }
-    } else {
+    } catch (err: any) {
+      console.error('Auto-auth failed:', err);
       setIsLoading(false);
+    } finally {
+      setIsAutoAuthenticating(false);
     }
   };
 
