@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Bot, User, AlertTriangle, ShieldCheck, Clock, CreditCard, ChevronRight, Loader2, Cpu } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, ShieldCheck, Clock, CreditCard, Loader2, Sparkles } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { toast } from 'sonner';
 
@@ -13,8 +13,6 @@ interface Message {
   results?: any[];
 }
 
-type AIProvider = 'gigachat' | 'askcodi' | 'openai';
-
 export const DiagnosticChat = ({ messages, setMessages, activeCar }: { 
   messages: Message[], 
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
@@ -22,7 +20,6 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
 }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [provider, setProvider] = useState<AIProvider>('gigachat');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,7 +46,6 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
         },
         body: JSON.stringify({ 
           text: currentInput, 
-          provider: provider,
           carInfo: activeCar ? { 
             make: activeCar.make, 
             model: activeCar.model, 
@@ -77,7 +73,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
     } catch (err: any) {
       console.error('Chat error:', err);
       toast.error(`Ошибка: ${err.message}`);
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: `Ошибка связи с ИИ (${provider}). ${err.message}` }]);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: `Ошибка связи с ИИ (OpenAI). ${err.message}` }]);
     } finally {
       setIsTyping(false);
     }
@@ -107,22 +103,14 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
 
   return (
     <div className="flex flex-col h-[calc(100vh-180px)] bg-slate-50 rounded-3xl overflow-hidden border border-slate-200">
-      {/* Provider Selector */}
-      <div className="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between">
+      <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Cpu size={16} className="text-indigo-600" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Модель ИИ</span>
+          <Sparkles size={18} className="text-indigo-600" />
+          <span className="text-xs font-black uppercase tracking-widest text-slate-800">Интеллектуальный помощник OpenAI</span>
         </div>
-        <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-          {(['gigachat', 'askcodi', 'openai'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setProvider(p)}
-              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${provider === p ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              {p}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase">System Online</span>
         </div>
       </div>
 
@@ -192,8 +180,9 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
             <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center">
               <Loader2 size={20} className="text-indigo-400 animate-spin" />
             </div>
-            <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm italic text-xs text-slate-400">
-              {provider.toUpperCase()} анализирует проблему...
+            <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm italic text-xs text-slate-400 flex items-center gap-2">
+              <Sparkles size={14} className="text-indigo-600 animate-pulse" />
+              OpenAI анализирует симптомы...
             </div>
           </div>
         )}
@@ -218,7 +207,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
           </button>
         </div>
         <p className="mt-2 text-[10px] text-center text-slate-400 uppercase tracking-widest font-bold">
-          ИИ {provider} может ошибаться. Для точной диагностики подключите OBD-II сканер.
+          ИИ OpenAI может ошибаться. Для точной диагностики обратитесь к специалисту.
         </p>
       </div>
     </div>
