@@ -90,9 +90,19 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   };
 
   const getOilPercentage = () => {
-    if (!oilStatus) return 100;
+    if (!oilStatus || !oilStatus.nextKm || !oilStatus.lastKm) return 100;
     const totalDistance = oilStatus.nextKm - oilStatus.lastKm;
-    const remaining = oilStatus.nextKm - currentOdometer;
+    if (totalDistance <= 0) return 100;
+    const remaining = oilStatus.nextKm - (currentOdometer || 0);
+    const percentage = Math.max(0, Math.min(100, (remaining / totalDistance) * 100));
+    return Math.round(percentage);
+  };
+
+  const getBrakePercentage = () => {
+    if (!brakeStatus || !brakeStatus.nextKm || !brakeStatus.lastKm) return 100;
+    const totalDistance = brakeStatus.nextKm - brakeStatus.lastKm;
+    if (totalDistance <= 0) return 100;
+    const remaining = brakeStatus.nextKm - (currentOdometer || 0);
     const percentage = Math.max(0, Math.min(100, (remaining / totalDistance) * 100));
     return Math.round(percentage);
   };
@@ -100,8 +110,6 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   const getHealthScore = () => {
     const oil = getOilPercentage();
     const brake = getBrakePercentage();
-    // Base score is weighted: Oil (50%), Brakes (50%)
-    // If we had OBD errors, we'd subtract from here
     const score = Math.round((oil * 0.5) + (brake * 0.5));
     return score;
   };
