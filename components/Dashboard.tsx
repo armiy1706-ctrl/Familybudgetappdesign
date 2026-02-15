@@ -164,6 +164,36 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     setShowOdometerModal(false);
   };
 
+  const onBatterySubmit = (data: BatteryFormData) => {
+    let baseResource = 5;
+    
+    if (data.climate === 'cold') baseResource -= 1;
+    if (data.climate === 'very_cold') baseResource -= 1.5;
+    if (data.climate === 'hot') baseResource -= 1;
+    if (data.engine === 'diesel') baseResource -= 0.5;
+    if (data.trips === 'short' || data.trips === 'rare') baseResource -= 0.5;
+
+    const remaining = baseResource - data.age;
+    const isOk = data.age < baseResource;
+    
+    let risk = 'Низкий';
+    if (data.age >= baseResource) risk = 'Высокий';
+    else if (data.age >= baseResource - 1) risk = 'Средний';
+
+    setDashboardData({
+      ...dashboardData,
+      batteryResult: {
+        isOk,
+        remaining: Math.max(0, Math.round(remaining * 10) / 10),
+        risk,
+        age: data.age
+      }
+    });
+    
+    toast.success('Состояние АКБ рассчитано!');
+    setShowBatteryModal(false);
+  };
+
   const maintenanceForm = useForm<Omit<MaintenanceRecord, 'id'>>({
     defaultValues: {
       date: new Date().toISOString().split('T')[0],
