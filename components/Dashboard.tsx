@@ -333,7 +333,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           </div>
           <div className="space-y-4">
             <ServiceItem icon={Wrench} label="Замена масла и фильтра" date="15 Июня" price="~8,500 ₽" />
-            <ServiceItem icon={Droplets} label="Тормозная жидкость" date="15 Июня" price="~3,200 ₽" />
+            <ServiceItem icon={Droplets} label="Тормозная жидко��ть" date="15 Июня" price="~3,200 ₽" />
           </div>
           <button className="w-full py-4 bg-slate-50 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-100 transition-colors border border-slate-100">
             Записаться в сервис
@@ -483,7 +483,15 @@ const HealthMiniCard = ({ icon: Icon, label, status, subStatus, color, onClick }
     <div className="mt-2">
       <p className="text-lg font-black leading-none group-hover:text-indigo-50 transition-colors">{status}</p>
       <p className="text-[9px] text-white/50 mt-1 font-medium group-hover:text-white/80 transition-colors truncate">
-        {subStatus}
+        {subStatus === 'Нажмите для ввода' ? (
+          <motion.span 
+            animate={{ opacity: [0.4, 1, 0.4] }} 
+            transition={{ repeat: Infinity, duration: 2 }}
+            className="text-indigo-200 font-black uppercase tracking-tighter"
+          >
+            {subStatus}
+          </motion.span>
+        ) : subStatus}
       </p>
     </div>
     
