@@ -12,8 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X,
-  Trash2
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner';
@@ -25,8 +24,9 @@ import { Profile } from './components/Profile';
 import { Auth } from './components/Auth';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
+import { ImageWithFallback } from './components/figma/ImageWithFallback';
 
-type Tab = 'dashboard' | 'diagnostics' | 'obd' | 'knowledge' | 'profile' | 'debug';
+type Tab = 'dashboard' | 'diagnostics' | 'obd' | 'knowledge' | 'profile';
 
 declare global {
   interface Window {
@@ -44,97 +44,43 @@ export default function App() {
   const [cars, setCars] = useState<any[]>([]);
   const [activeCarIndex, setActiveCarIndex] = useState(0);
   const [userProfile, setUserProfile] = useState<any>(null);
-  const [chatMessages, setChatMessages] = useState<any[]>([
-    { id: '1', role: 'assistant', content: 'Здравствуйте! Я ваш ИИ-автомеханик. Опишите симптомы неисправности вашего автомобиля или введите коды ошибок OBD-II.' }
-  ]);
 
-  const [isDemoMode, setIsDemoMode] = useState(false);
-  const [clickCount, setClickCount] = useState(0);
+  const BUILD_VERSION = "4.2.10-restored";
 
-  const BUILD_VERSION = "4.2.8-stable";
-
-  const handleVersionClick = () => {
-    setClickCount(prev => {
-      const newCount = prev + 1;
-      if (newCount === 7) {
-        setIsDemoMode(true);
-        toast.info("Демо-режим активирован (Developer Access)");
-        return 0;
-      }
-      return newCount;
-    });
-  };
-
-  // Safe JSON Parse wrapper
   const safeParse = (str: string | null, fallback: any) => {
     if (!str) return fallback;
     try {
-      // Clean up string from potential garbage characters
-      const cleanStr = str.trim();
-      return JSON.parse(cleanStr);
+      return JSON.parse(str.trim());
     } catch (e) {
-      console.error("JSON Parse Error:", e, "on string:", str);
       return fallback;
     }
   };
 
-  // Persistence: Save active car and chat to localStorage
   useEffect(() => {
     try {
       const savedCarsStr = localStorage.getItem('autoai_cars');
       const parsedCars = safeParse(savedCarsStr, []);
-      
-      // MIGRATION: Ensure all cars have the dashboardData structure
-      const migratedCars = parsedCars.map((car: any) => {
-        if (!car || typeof car !== 'object') return null;
-        if (!car.dashboardData) {
-          return {
-            ...car,
-            dashboardData: {
-              currentOdometer: Number(car.mileage) || 0,
-              oilStatus: null,
-              brakeStatus: null
-            }
-          };
-        }
-        return car;
-      }).filter(Boolean);
-      
-      setCars(migratedCars);
+      setCars(parsedCars);
 
       const savedCarIndex = localStorage.getItem('autoai_active_car_index');
       if (savedCarIndex !== null) {
         const idx = parseInt(savedCarIndex);
         if (!isNaN(idx)) setActiveCarIndex(idx);
       }
-      
-      const savedChatStr = localStorage.getItem('autoai_chat_history');
-      if (savedChatStr) {
-        const parsedChat = safeParse(savedChatStr, null);
-        if (Array.isArray(parsedChat)) setChatMessages(parsedChat);
-      }
     } catch (e) {
-      console.error("Local storage restoration failed:", e);
+      console.error(e);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (cars.length > 0) {
-      localStorage.setItem('autoai_cars', JSON.stringify(cars));
-    }
+    localStorage.setItem('autoai_cars', JSON.stringify(cars));
   }, [cars]);
 
   useEffect(() => {
     localStorage.setItem('autoai_active_car_index', activeCarIndex.toString());
   }, [activeCarIndex]);
-
-  useEffect(() => {
-    if (chatMessages.length > 1) { // Don't save if only initial message
-      localStorage.setItem('autoai_chat_history', JSON.stringify(chatMessages));
-    }
-  }, [chatMessages]);
 
   const fetchUserData = async (user: any) => {
     try {
@@ -150,20 +96,8 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch user data:', err);
+      console.error(err);
     }
-  };
-
-  const deleteCar = (id: string) => {
-    if (!window.confirm("Вы уверены, что хотите удалить этот автомобиль из гаража?")) return;
-    setCars(prev => {
-      const newCars = prev.filter(c => c.id !== id);
-      const newIndex = Math.max(0, Math.min(activeCarIndex, newCars.length - 1));
-      setActiveCarIndex(newIndex);
-      syncCarsWithServer(newCars);
-      return newCars;
-    });
-    toast.success("Автомобиль удален из гаража");
   };
 
   const addCar = (car: any) => {
@@ -171,12 +105,11 @@ export default function App() {
       const newCar = { 
         ...car, 
         id: Date.now().toString(), 
-        serviceHistory: [],
-        dashboardData: {
+        dashboardData: { 
           currentOdometer: Number(car.mileage) || 0,
           oilStatus: null,
           brakeStatus: null
-        }
+        } 
       };
       const newCars = [...prev, newCar];
       if (prev.length === 0) setActiveCarIndex(0);
@@ -185,18 +118,27 @@ export default function App() {
     });
   };
 
-  const updateActiveCarDashboardData = (newData: any) => {
+  const updateDashboardData = (newData: any) => {
     setCars(prev => {
       const newCars = [...prev];
       if (newCars[activeCarIndex]) {
-        newCars[activeCarIndex] = {
-          ...newCars[activeCarIndex],
-          dashboardData: newData
-        };
+        newCars[activeCarIndex] = { ...newCars[activeCarIndex], dashboardData: newData };
       }
       syncCarsWithServer(newCars);
       return newCars;
     });
+  };
+
+  const deleteCar = (id: string) => {
+    if (!window.confirm("Удалить автомобиль?")) return;
+    setCars(prev => {
+      const newCars = prev.filter(c => c.id !== id);
+      const newIndex = Math.max(0, Math.min(activeCarIndex, newCars.length - 1));
+      setActiveCarIndex(newIndex);
+      syncCarsWithServer(newCars);
+      return newCars;
+    });
+    toast.success("Автомобиль удален");
   };
 
   const syncCarsWithServer = (currentCars: any[]) => {
@@ -204,10 +146,7 @@ export default function App() {
     if (tgId) {
       fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/save-cars`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
         body: JSON.stringify({ tgId, cars: currentCars })
       });
     }
@@ -219,96 +158,54 @@ export default function App() {
   };
 
   useEffect(() => {
-    const safetyTimeout = setTimeout(() => {
-      setIsLoading(false);
-      setIsAutoAuthenticating(false);
-    }, 5000);
-
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-web-app.js';
     script.async = true;
     script.onload = () => {
       const tg = (window as any).Telegram?.WebApp;
-      if (tg) {
-        tg.ready();
-        tg.expand();
-      }
-    };
-    script.onerror = () => {
-       console.error("Telegram script failed to load");
-       setIsLoading(false);
+      if (tg) { tg.ready(); tg.expand(); }
     };
     document.body.appendChild(script);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (!session) {
-        setTimeout(() => handleTelegramAutoAuth(), 800);
-      } else {
-        fetchUserData(session.user);
-        setIsLoading(false);
-      }
-    }).catch(err => {
-      console.error("Supabase session error:", err);
-      setIsLoading(false);
+      if (!session) handleTelegramAutoAuth();
+      else fetchUserData(session.user);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) {
-        fetchUserData(session.user);
-        setIsLoading(false);
-      }
+      if (session) fetchUserData(session.user);
     });
 
     return () => {
-      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
+      if (document.body.contains(script)) document.body.removeChild(script);
     };
   }, []);
 
   const handleTelegramAutoAuth = async () => {
     try {
       const tg = (window as any).Telegram?.WebApp;
-      if (tg && tg.initData && tg.initData.length > 0) {
+      if (tg && tg.initData) {
         setIsAutoAuthenticating(true);
         const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/telegram-auth`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
           body: JSON.stringify({ initData: tg.initData })
         });
-        
-        if (!response.ok) {
-           setIsLoading(false);
-           setIsAutoAuthenticating(false);
-           return;
+        if (response.ok) {
+          const data = await response.json();
+          if (data.email && data.password) {
+            await supabase.auth.signInWithPassword({ email: data.email, password: data.password });
+          }
         }
-
-        const data = await response.json();
-        if (data.email && data.password) {
-          const { error } = await supabase.auth.signInWithPassword({
-            email: data.email,
-            password: data.password
-          });
-          if (error) throw error;
-          toast.success('Авторизация Telegram выполнена успешно');
-        }
-      } else {
-        setIsLoading(false);
       }
-    } catch (err: any) {
-      console.error('Auto-auth failed:', err);
-      setIsLoading(false);
+    } catch (err) {
+      console.error(err);
     } finally {
       setIsAutoAuthenticating(false);
+      setIsLoading(false);
     }
   };
 
@@ -321,19 +218,11 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
         <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-        {isAutoAuthenticating && <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">Синхронизация с Telegram...</p>}
       </div>
     );
   }
 
-  if (!session) {
-    return (
-      <>
-        <Auth />
-        <Toaster position="bottom-right" richColors />
-      </>
-    );
-  }
+  if (!session) return <><Auth /><Toaster position="bottom-right" richColors /></>;
 
   const navItems = [
     { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
@@ -341,70 +230,26 @@ export default function App() {
     { id: 'obd', label: 'OBD-II Сканер', icon: Activity },
     { id: 'knowledge', label: 'База знаний', icon: BookOpen },
     { id: 'profile', label: 'Мой профиль', icon: User },
-    ...(isDemoMode ? [{ id: 'debug', label: 'Debug Panel', icon: Activity }] : []),
   ];
 
   const bottomNavItems = [
     { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
     { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
     { id: 'profile', label: 'Профиль', icon: User },
-    ...(isDemoMode ? [{ id: 'debug', label: 'Debug', icon: Activity }] : []),
   ];
 
-  const renderContent = () => {
-    const activeCar = cars[activeCarIndex] || null;
-    const activeCarData = activeCar?.dashboardData || {
-      currentOdometer: Number(activeCar?.mileage) || 0,
-      oilStatus: null,
-      brakeStatus: null
-    };
-
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCarData} setDashboardData={updateActiveCarDashboardData} onDeleteCar={deleteCar} />;
-      case 'diagnostics': return <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />;
-      case 'obd': return <OBDScanner />;
-      case 'knowledge': return <KnowledgeBase />;
-      case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} onDeleteCar={deleteCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
-      case 'debug': return (
-        <div className="bg-white p-8 rounded-[32px] border border-slate-200 space-y-6 overflow-y-auto max-h-full">
-          <h2 className="text-xl font-black">Панель разработчика</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-xs font-bold text-slate-400 uppercase mb-2">System Info</p>
-              <pre className="text-[10px] text-slate-600 overflow-auto max-h-[200px]">
-                {JSON.stringify({
-                  projectId,
-                  userId: session?.user?.id,
-                  tgId: session?.user?.user_metadata?.telegram_id,
-                  carsCount: cars.length,
-                  platform: window.Telegram?.WebApp?.platform || 'Web'
-                }, null, 2)}
-              </pre>
-            </div>
-            <div className="space-y-3">
-               <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors">Сбросить локальные данные</button>
-               <button onClick={() => setIsDemoMode(false)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors">Выйти из Demo-режима</button>
-               <div className="p-3 bg-indigo-50 rounded-xl text-[10px] text-indigo-700 font-medium">
-                 Версия: {BUILD_VERSION}
-               </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-  };
+  const activeCar = cars[activeCarIndex] || null;
 
   return (
-    <div className="flex min-h-screen bg-[#020617] font-sans text-slate-100 overflow-hidden relative">
-      {/* Оригинальный фоновый паттерн */}
-      <div className="absolute inset-0 z-0 opacity-20 pointer-events-none" 
-        style={{ 
-          backgroundImage: `linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)`,
-          backgroundSize: '40px 40px' 
-        }} 
-      />
-      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-indigo-950/50 via-transparent to-slate-950 pointer-events-none" />
-      <aside className={`hidden lg:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-72' : 'w-24'}`}>
+    <div className="flex min-h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden relative">
+      <div className="absolute inset-0 z-0 flex items-center justify-center opacity-[0.03] pointer-events-none overflow-hidden">
+        <ImageWithFallback 
+          src="https://images.unsplash.com/photo-1688748807457-d8926e351596?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+          className="w-[120%] h-auto rotate-12"
+        />
+      </div>
+
+      <aside className={`hidden lg:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 relative z-20 ${isSidebarOpen ? 'w-72' : 'w-24'}`}>
         <div className="p-8 flex items-center gap-3 overflow-hidden">
           <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100">
             <Activity size={24} className="text-white" />
@@ -431,7 +276,7 @@ export default function App() {
           </button>
           <div className="mt-4 p-4 bg-slate-50 rounded-2xl flex items-center gap-3 overflow-hidden">
             <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600 shrink-0 capitalize">
-              {session?.user?.user_metadata?.avatar_url ? <img src={session.user.user_metadata.avatar_url} className="w-full h-full rounded-full" /> : (session?.user?.email?.[0] || 'A')}
+              {session?.user?.email?.[0] || 'A'}
             </div>
             {isSidebarOpen && (
               <div className="truncate">
@@ -444,42 +289,43 @@ export default function App() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-20 bg-slate-900/50 backdrop-blur-md border-b border-white/5 px-4 lg:px-12 flex items-center justify-between shrink-0 z-20">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
+        <header className="h-20 bg-white border-b border-slate-200/50 px-4 lg:px-12 flex items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-2 lg:gap-4 flex-1">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-400 hover:bg-white/5 rounded-xl transition-colors"><Menu size={24} /></button>
+            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"><Menu size={24} /></button>
             <div className="max-w-[200px] w-full relative hidden xl:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <input type="text" placeholder="Поиск..." className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-xs font-medium focus:ring-2 ring-indigo-500 outline-none transition-all text-white placeholder:text-slate-600" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+              <input type="text" placeholder="Поиск..." className="w-full bg-slate-50 border-none rounded-xl py-2 pl-10 pr-4 text-xs font-medium focus:ring-2 ring-indigo-500 outline-none transition-all" />
             </div>
           </div>
 
           <div className="flex items-center justify-center gap-2 lg:gap-3 flex-1">
-            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-indigo-500 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20"><Activity size={20} className="text-white lg:scale-110" /></div>
-            <span className="font-black text-xl lg:text-2xl tracking-tight text-white">AutoAI</span>
+            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-indigo-600 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100"><Activity size={20} className="text-white lg:scale-110" /></div>
+            <span className="font-black text-xl lg:text-2xl tracking-tight text-slate-900">AutoAI</span>
           </div>
 
           <div className="flex items-center justify-end gap-2 md:gap-4 flex-1">
-            <button className="p-2.5 text-slate-400 hover:bg-white/5 rounded-xl relative transition-all"><Bell size={18} /><span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-[#020617]"></span></button>
+            <button className="p-2.5 text-slate-400 hover:bg-slate-50 rounded-xl relative transition-all"><Bell size={18} /><span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-white"></span></button>
             <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[10px] font-black uppercase text-white leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}</p>
-              <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest leading-none">Diagnostic Active</p>
+              <p className="text-[10px] font-black uppercase text-slate-900 leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}</p>
+              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Online</p>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12 bg-transparent relative z-10">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12">
           <div className="max-w-6xl mx-auto h-full">
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="h-full">
                 <div className="mb-8">
-                  <h1 className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">
-                    {navItems.find(i => i.id === activeTab)?.label}
-                    {isDemoMode && <span className="ml-2 bg-amber-100 text-amber-700 text-[9px] px-2 py-0.5 rounded-full border border-amber-200">DEV MODE</span>}
-                  </h1>
-                  <p onClick={handleVersionClick} className="text-slate-400 text-xs font-medium cursor-pointer select-none active:opacity-50 transition-opacity">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
+                  <h1 className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">{navItems.find(i => i.id === activeTab)?.label}</h1>
+                  <p className="text-slate-400 text-xs font-medium">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
                 </div>
-                {renderContent()}
+                {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCar?.dashboardData} setDashboardData={updateDashboardData} onDeleteCar={deleteCar} />}
+                {activeTab === 'diagnostics' && <DiagnosticChat activeCar={activeCar} />}
+                {activeTab === 'obd' && <OBDScanner />}
+                {activeTab === 'knowledge' && <KnowledgeBase />}
+                {activeTab === 'profile' && <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} onDeleteCar={deleteCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -509,13 +355,6 @@ export default function App() {
                   <button key={item.id} onClick={() => { setActiveTab(item.id as Tab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}><item.icon size={22} /><span>{item.label}</span></button>
                 ))}
               </nav>
-              <div className="mt-auto pt-8 border-t border-slate-100 flex items-center gap-4">
-                <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">{session?.user?.email?.[0]?.toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name}</p>
-                  <button onClick={handleLogout} className="text-xs font-bold text-rose-500 hover:text-rose-600">Выйти</button>
-                </div>
-              </div>
             </motion.aside>
           </div>
         )}
