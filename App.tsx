@@ -50,7 +50,7 @@ export default function App() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [clickCount, setClickCount] = useState(0);
 
-  const BUILD_VERSION = "4.2.7-stable";
+  const BUILD_VERSION = "4.2.6-stable";
 
   const handleVersionClick = () => {
     setClickCount(prev => {
@@ -70,14 +70,22 @@ export default function App() {
       const savedCars = localStorage.getItem('autoai_cars');
       if (savedCars) {
         let parsedCars = JSON.parse(savedCars);
-        const migratedCars = parsedCars.map((car: any) => ({
-          ...car,
-          dashboardData: car.dashboardData || {
-            currentOdometer: car.mileage || 0,
-            oilStatus: null,
-            brakeStatus: null
+        
+        // MIGRATION: Ensure all cars have the dashboardData structure
+        const migratedCars = parsedCars.map((car: any) => {
+          if (!car.dashboardData) {
+            return {
+              ...car,
+              dashboardData: {
+                currentOdometer: car.mileage || 0,
+                oilStatus: null,
+                brakeStatus: null
+              }
+            };
           }
-        }));
+          return car;
+        });
+        
         setCars(migratedCars);
       }
 
@@ -121,18 +129,6 @@ export default function App() {
     }
   };
 
-  const deleteCar = (id: string) => {
-    if (!window.confirm("Вы уверены, что хотите удалить этот автомобиль из гаража?")) return;
-    setCars(prev => {
-      const newCars = prev.filter(c => c.id !== id);
-      const newIndex = Math.max(0, Math.min(activeCarIndex, newCars.length - 1));
-      setActiveCarIndex(newIndex);
-      syncCarsWithServer(newCars);
-      return newCars;
-    });
-    toast.success("Автомобиль удален из гаража");
-  };
-
   const addCar = (car: any) => {
     setCars(prev => {
       const newCar = { 
@@ -140,7 +136,7 @@ export default function App() {
         id: Date.now().toString(), 
         serviceHistory: [],
         dashboardData: {
-          currentOdometer: Number(car.mileage) || 0,
+          currentOdometer: car.mileage || 0,
           oilStatus: null,
           brakeStatus: null
         }
@@ -166,6 +162,19 @@ export default function App() {
     });
   };
 
+  const addServiceRecord = (carId: string, record: any) => {
+    setCars(prev => {
+      const newCars = prev.map(c => {
+        if (c.id === carId) {
+          return { ...c, serviceHistory: [record, ...(c.serviceHistory || [])] };
+        }
+        return c;
+      });
+      syncCarsWithServer(newCars);
+      return newCars;
+    });
+  };
+
   const syncCarsWithServer = (currentCars: any[]) => {
     const tgId = session?.user?.user_metadata?.telegram_id;
     if (tgId) {
@@ -179,6 +188,10 @@ export default function App() {
       });
     }
   };
+
+  useEffect(() => {
+    (window as any).addServiceRecord = addServiceRecord;
+  }, [cars, session]);
 
   const switchCar = (index: number) => {
     setActiveCarIndex(index);
@@ -327,7 +340,7 @@ export default function App() {
     };
 
     switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCarData} setDashboardData={updateActiveCarDashboardData} onDeleteCar={deleteCar} />;
+      case 'dashboard': return <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCarData} setDashboardData={updateActiveCarDashboardData} />;
       case 'diagnostics': return <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />;
       case 'obd': return <OBDScanner />;
       case 'knowledge': return <KnowledgeBase />;
@@ -347,6 +360,10 @@ export default function App() {
                   platform: window.Telegram?.WebApp?.platform || 'Web'
                 }, null, 2)}
               </pre>
+            </div>
+            <div className="space-y-3">
+               <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors">Сбросить локальные данные</button>
+               <button onClick={() => setIsDemoMode(false)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors">Выйти из Demo-режима</button>
             </div>
           </div>
         </div>
