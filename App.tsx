@@ -52,7 +52,22 @@ export default function App() {
     brakeStatus: null
   });
 
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+
   const BUILD_VERSION = "4.2.5-stable";
+
+  const handleVersionClick = () => {
+    setClickCount(prev => {
+      const newCount = prev + 1;
+      if (newCount === 7) {
+        setIsDemoMode(true);
+        toast.info("Демо-режим активирован (Developer Access)");
+        return 0;
+      }
+      return newCount;
+    });
+  };
 
   // Persistence: Save active car, chat and dashboard to localStorage
   useEffect(() => {
@@ -241,12 +256,14 @@ export default function App() {
     { id: 'obd', label: 'OBD-II Сканер', icon: Activity },
     { id: 'knowledge', label: 'База знаний', icon: BookOpen },
     { id: 'profile', label: 'Мой профиль', icon: User },
+    ...(isDemoMode ? [{ id: 'debug', label: 'Debug Panel', icon: Activity }] : []),
   ];
 
   const bottomNavItems = [
     { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
     { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
     { id: 'profile', label: 'Профиль', icon: User },
+    ...(isDemoMode ? [{ id: 'debug', label: 'Debug', icon: Activity }] : []),
   ];
 
   const renderContent = () => {
@@ -257,6 +274,39 @@ export default function App() {
       case 'obd': return <OBDScanner />;
       case 'knowledge': return <KnowledgeBase />;
       case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
+      case 'debug' as any: return (
+        <div className="bg-white p-8 rounded-[32px] border border-slate-200 space-y-6">
+          <h2 className="text-xl font-black">Панель разработчика</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <p className="text-xs font-bold text-slate-400 uppercase mb-2">System Info</p>
+              <pre className="text-[10px] text-slate-600 overflow-auto">
+                {JSON.stringify({
+                  projectId,
+                  userId: session?.user?.id,
+                  tgId: session?.user?.user_metadata?.telegram_id,
+                  carsCount: cars.length,
+                  platform: window.Telegram?.WebApp?.platform || 'Web'
+                }, null, 2)}
+              </pre>
+            </div>
+            <div className="space-y-3">
+               <button 
+                onClick={() => { localStorage.clear(); window.location.reload(); }}
+                className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors"
+               >
+                 Сбросить локальные данные
+               </button>
+               <button 
+                onClick={() => setIsDemoMode(false)}
+                className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
+               >
+                 Выйти из Demo-режима
+               </button>
+            </div>
+          </div>
+        </div>
+      );
     }
   };
 
@@ -383,8 +433,14 @@ export default function App() {
                 <div className="mb-8">
                   <h1 className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">
                     {navItems.find(i => i.id === activeTab)?.label}
+                    {isDemoMode && <span className="ml-2 bg-amber-100 text-amber-700 text-[9px] px-2 py-0.5 rounded-full border border-amber-200">DEV MODE</span>}
                   </h1>
-                  <p className="text-slate-400 text-xs font-medium">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
+                  <p 
+                    onClick={handleVersionClick}
+                    className="text-slate-400 text-xs font-medium cursor-pointer select-none active:opacity-50 transition-opacity"
+                  >
+                    AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг
+                  </p>
                 </div>
                 {renderContent()}
               </motion.div>
