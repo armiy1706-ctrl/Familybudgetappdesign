@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Activity, Calendar, Settings, AlertTriangle, ShieldCheck, ChevronRight, Fuel, Wrench, Droplets, X, Gauge, Zap, Sparkles } from 'lucide-react';
+import { 
+  Heart, 
+  Activity, 
+  Calendar, 
+  Settings, 
+  AlertTriangle, 
+  ShieldCheck, 
+  ChevronRight, 
+  Fuel, 
+  Wrench, 
+  Droplets, 
+  X, 
+  Gauge, 
+  Zap, 
+  Sparkles,
+  PlusCircle,
+  PencilLine
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 
@@ -167,9 +184,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                 onClick={() => onNavigate('diagnostics')}
                 className="group relative w-full md:w-auto bg-white text-indigo-700 px-6 py-4 rounded-2xl font-black text-[11px] sm:text-sm hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] active:scale-95 overflow-hidden border border-white/50"
               >
-                {/* Анимированный блик при наведении */}
                 <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/60 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
-                
                 <Sparkles size={18} className="text-indigo-400 group-hover:rotate-12 group-hover:scale-110 transition-all" />
                 <span className="relative z-10 uppercase tracking-tight">Обратиться к ИИ-автомеханику</span>
                 <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
@@ -177,10 +192,17 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               
               <button 
                 onClick={() => setShowOdometerModal(true)}
-                className="w-full md:w-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold text-[13px] transition-all inline-flex items-center justify-center gap-2 border border-white/20 backdrop-blur-sm active:scale-95"
+                className="group w-full md:w-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold text-[13px] transition-all inline-flex items-center justify-center gap-3 border border-white/20 backdrop-blur-sm active:scale-95"
               >
-                <Gauge size={16} className="text-indigo-300" />
-                Пробег: <span className="text-white">{currentOdometer.toLocaleString()} км</span>
+                <div className="relative flex items-center justify-center">
+                  <Gauge size={18} className="text-indigo-300 group-hover:rotate-12 transition-transform" />
+                  <PencilLine size={10} className="absolute -top-1 -right-1 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200/60 leading-none mb-0.5">Текущий пробег</p>
+                  <p className="text-sm font-black">{currentOdometer.toLocaleString()} км</p>
+                </div>
+                <PlusCircle size={14} className="ml-1 text-white/30 group-hover:text-white transition-colors" />
               </button>
             </div>
           </div>
@@ -190,7 +212,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               icon={Droplets} 
               label="Масло" 
               status={`${getOilPercentage()}%`} 
-              subStatus={oilStatus ? `След: ${oilStatus.nextKm} км` : 'Ресурс масла'}
+              subStatus={oilStatus ? `След: ${oilStatus.nextKm} км` : 'Нажмите для ввода'}
               color={getOilPercentage() < 20 ? "text-rose-400" : "text-emerald-400"} 
               onClick={() => {
                 if (!activeCar) return toast.error('Добавьте авто');
@@ -201,7 +223,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               icon={Activity} 
               label="Тормоза" 
               status={`${getBrakePercentage()}%`} 
-              subStatus={brakeStatus ? `След: ${brakeStatus.nextKm} км` : 'Износ колодок'}
+              subStatus={brakeStatus ? `След: ${brakeStatus.nextKm} км` : 'Нажмите для ввода'}
               color={getBrakePercentage() < 20 ? "text-rose-400" : "text-amber-400"} 
               onClick={() => {
                 if (!activeCar) return toast.error('Добавьте авто');
@@ -213,7 +235,6 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           </div>
         </div>
         
-        {/* Background elements */}
         <div className="absolute top-0 right-0 p-8 opacity-20 pointer-events-none">
           <Activity size={200} />
         </div>
@@ -299,7 +320,6 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
         )}
       </AnimatePresence>
 
-      {/* Main Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
           <div className="flex justify-between items-center">
@@ -339,7 +359,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             />
             <RecommendationItem 
               title="Износ передних колодок" 
-              desc="Толщина фрик��ионного слоя 3мм. Замена через ~1000 км." 
+              desc="Толщина фрикционного слоя 3мм. Замена через ~1000 км." 
               severity="Средний" 
               severityColor="text-amber-500"
             />
@@ -446,19 +466,29 @@ const ServiceModal = ({ isOpen, onClose, title, icon: Icon, colorClass, bgClass,
 };
 
 const HealthMiniCard = ({ icon: Icon, label, status, subStatus, color, onClick }: any) => (
-  <div 
+  <motion.div 
+    whileHover={{ y: -4, scale: 1.02 }}
+    whileTap={{ scale: 0.96 }}
     onClick={onClick}
-    className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 min-w-[120px] cursor-pointer hover:bg-white/20 transition-all flex flex-col justify-between"
+    className="group relative bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 min-w-[120px] cursor-pointer hover:bg-white/20 hover:border-white/30 transition-all flex flex-col justify-between overflow-hidden"
   >
-    <div>
-      <Icon size={20} className={color} />
-      <p className="mt-2 text-[10px] font-bold text-indigo-200 uppercase tracking-widest">{label}</p>
+    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <PlusCircle size={14} className="text-white/70" />
     </div>
+
     <div>
-      <p className="text-lg font-black leading-none">{status}</p>
-      {subStatus && <p className="text-[9px] text-white/50 mt-1 font-medium">{subStatus}</p>}
+      <Icon size={20} className={`${color} group-hover:scale-110 transition-transform`} />
+      <p className="mt-2 text-[10px] font-black text-indigo-100 uppercase tracking-widest opacity-80">{label}</p>
     </div>
-  </div>
+    <div className="mt-2">
+      <p className="text-lg font-black leading-none group-hover:text-indigo-50 transition-colors">{status}</p>
+      <p className="text-[9px] text-white/50 mt-1 font-medium group-hover:text-white/80 transition-colors truncate">
+        {subStatus}
+      </p>
+    </div>
+    
+    <div className="absolute bottom-0 left-0 h-0.5 bg-white/10 group-hover:bg-white/40 transition-colors w-full" />
+  </motion.div>
 );
 
 const ServiceItem = ({ icon: Icon, label, date, price }: any) => (
