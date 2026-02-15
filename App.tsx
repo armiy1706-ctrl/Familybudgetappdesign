@@ -44,8 +44,13 @@ export default function App() {
   const [cars, setCars] = useState<any[]>([]);
   const [activeCarIndex, setActiveCarIndex] = useState(0);
   const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // Chat state persistence
+  const [chatMessages, setChatMessages] = useState<any[]>([
+    { id: '1', role: 'assistant', content: 'Здравствуйте! Я ваш ИИ-автомеханик. Опишите симптомы неисправности или введите коды ошибок OBD-II.' }
+  ]);
 
-  const BUILD_VERSION = "4.2.10-restored";
+  const BUILD_VERSION = "4.2.11-ai-fix";
 
   const safeParse = (str: string | null, fallback: any) => {
     if (!str) return fallback;
@@ -67,6 +72,12 @@ export default function App() {
         const idx = parseInt(savedCarIndex);
         if (!isNaN(idx)) setActiveCarIndex(idx);
       }
+
+      const savedChat = localStorage.getItem('autoai_chat_history');
+      if (savedChat) {
+        const parsedChat = safeParse(savedChat, null);
+        if (Array.isArray(parsedChat)) setChatMessages(parsedChat);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -81,6 +92,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('autoai_active_car_index', activeCarIndex.toString());
   }, [activeCarIndex]);
+
+  useEffect(() => {
+    if (chatMessages.length > 1) {
+      localStorage.setItem('autoai_chat_history', JSON.stringify(chatMessages));
+    }
+  }, [chatMessages]);
 
   const fetchUserData = async (user: any) => {
     try {
@@ -322,7 +339,7 @@ export default function App() {
                   <p className="text-slate-400 text-xs font-medium">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
                 </div>
                 {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCar?.dashboardData} setDashboardData={updateDashboardData} onDeleteCar={deleteCar} />}
-                {activeTab === 'diagnostics' && <DiagnosticChat activeCar={activeCar} />}
+                {activeTab === 'diagnostics' && <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />}
                 {activeTab === 'obd' && <OBDScanner />}
                 {activeTab === 'knowledge' && <KnowledgeBase />}
                 {activeTab === 'profile' && <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} onDeleteCar={deleteCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />}
