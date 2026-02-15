@@ -25,7 +25,7 @@ import { Auth } from './components/Auth';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 
-type Tab = 'dashboard' | 'diagnostics' | 'obd' | 'knowledge' | 'profile';
+type Tab = 'dashboard' | 'diagnostics' | 'obd' | 'knowledge' | 'profile' | 'debug';
 
 declare global {
   interface Window {
@@ -85,7 +85,6 @@ export default function App() {
       if (savedDash) setDashboardData(JSON.parse(savedDash));
     } catch (e) {
       console.error("Local storage restoration failed:", e);
-      // If JSON is corrupt, clear it to prevent further crashes
       localStorage.removeItem('autoai_cars');
       localStorage.removeItem('autoai_chat_history');
       localStorage.removeItem('autoai_dashboard_data');
@@ -112,7 +111,6 @@ export default function App() {
     try {
       const tgId = user.user_metadata?.telegram_id;
       if (tgId) {
-        // Fetch cars from KV via server
         const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/user-data?tgId=${tgId}`, {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         });
@@ -129,7 +127,6 @@ export default function App() {
     setCars(prev => {
       const newCars = [...prev, { ...car, id: Date.now().toString(), serviceHistory: [] }];
       if (prev.length === 0) setActiveCarIndex(0);
-      
       syncCarsWithServer(newCars);
       return newCars;
     });
@@ -172,7 +169,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Safety timeout: stop loading after 5 seconds regardless of what happens
     const safetyTimeout = setTimeout(() => {
       setIsLoading(false);
       setIsAutoAuthenticating(false);
@@ -197,7 +193,6 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (!session) {
-        // Give a bit more time for TG SDK to initialize before checking initData
         setTimeout(() => handleTelegramAutoAuth(), 800);
       } else {
         fetchUserData(session.user);
@@ -232,7 +227,6 @@ export default function App() {
       const tg = (window as any).Telegram?.WebApp;
       if (tg && tg.initData && tg.initData.length > 0) {
         setIsAutoAuthenticating(true);
-        console.log("Telegram initData found, authenticating...");
         const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/telegram-auth`, {
           method: 'POST',
           headers: {
@@ -243,8 +237,6 @@ export default function App() {
         });
         
         if (!response.ok) {
-           const errText = await response.text();
-           console.error("Server auth error:", errText);
            setIsLoading(false);
            setIsAutoAuthenticating(false);
            return;
@@ -260,7 +252,6 @@ export default function App() {
           toast.success('Авторизация Telegram выполнена успешно');
         }
       } else {
-        console.log("No Telegram initData found or not in Telegram environment");
         setIsLoading(false);
       }
     } catch (err: any) {
@@ -318,7 +309,7 @@ export default function App() {
       case 'obd': return <OBDScanner />;
       case 'knowledge': return <KnowledgeBase />;
       case 'profile': return <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />;
-      case 'debug' as any: return (
+      case 'debug': return (
         <div className="bg-white p-8 rounded-[32px] border border-slate-200 space-y-6">
           <h2 className="text-xl font-black">Панель разработчика</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -335,18 +326,8 @@ export default function App() {
               </pre>
             </div>
             <div className="space-y-3">
-               <button 
-                onClick={() => { localStorage.clear(); window.location.reload(); }}
-                className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors"
-               >
-                 Сбросить локальные данные
-               </button>
-               <button 
-                onClick={() => setIsDemoMode(false)}
-                className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
-               >
-                 Выйти из Demo-режима
-               </button>
+               <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors">Сбросить локальные данные</button>
+               <button onClick={() => setIsDemoMode(false)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors">Выйти из Demo-режима</button>
             </div>
           </div>
         </div>
@@ -356,7 +337,6 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
-      {/* Sidebar Desktop */}
       <aside className={`hidden lg:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-72' : 'w-24'}`}>
         <div className="p-8 flex items-center gap-3 overflow-hidden">
           <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100">
@@ -374,35 +354,21 @@ export default function App() {
             >
               <item.icon size={22} className="shrink-0" />
               {isSidebarOpen && <span className="truncate">{item.label}</span>}
-              {isSidebarOpen && activeTab === item.id && (
-                <motion.div layoutId="active" className="ml-auto w-1.5 h-1.5 bg-white rounded-full" />
-              )}
             </button>
           ))}
         </nav>
 
         <div className="p-4 mt-auto">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="w-full flex items-center justify-center p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-slate-600 transition-all"
-          >
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="w-full flex items-center justify-center p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-slate-600 transition-all">
             {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
           </button>
           <div className="mt-4 p-4 bg-slate-50 rounded-2xl flex items-center gap-3 overflow-hidden">
-            {session?.user?.user_metadata?.avatar_url ? (
-              <img 
-                src={session.user.user_metadata.avatar_url} 
-                alt="Avatar" 
-                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
-              />
-            ) : (
-              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600 shrink-0 capitalize">
-                {session?.user?.email?.[0] || 'A'}
-              </div>
-            )}
+            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600 shrink-0 capitalize">
+              {session?.user?.user_metadata?.avatar_url ? <img src={session.user.user_metadata.avatar_url} className="w-full h-full rounded-full" /> : (session?.user?.email?.[0] || 'A')}
+            </div>
             {isSidebarOpen && (
               <div className="truncate">
-                <p className="text-xs font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name || 'Пользователь'}</p>
+                <p className="text-xs font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name || 'User'}</p>
                 <p className="text-[10px] text-slate-400 truncate">{session?.user?.email}</p>
               </div>
             )}
@@ -411,80 +377,40 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Top Header */}
         <header className="h-20 bg-white border-b border-slate-200 px-4 lg:px-12 flex items-center justify-between shrink-0 z-20">
-          {/* Left: Mobile Menu & Search (Search hidden on mobile/tablet) */}
           <div className="flex items-center gap-2 lg:gap-4 flex-1">
-            <button 
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"
-            >
-              <Menu size={24} />
-            </button>
+            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors"><Menu size={24} /></button>
             <div className="max-w-[200px] w-full relative hidden xl:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-              <input 
-                type="text" 
-                placeholder="Поиск..." 
-                className="w-full bg-slate-50 border-none rounded-xl py-2 pl-10 pr-4 text-xs font-medium focus:ring-2 ring-indigo-500 outline-none transition-all"
-              />
+              <input type="text" placeholder="Поиск..." className="w-full bg-slate-50 border-none rounded-xl py-2 pl-10 pr-4 text-xs font-medium focus:ring-2 ring-indigo-500 outline-none transition-all" />
             </div>
           </div>
 
-          {/* Center: Application Name and Logo */}
           <div className="flex items-center justify-center gap-2 lg:gap-3 flex-1">
-            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-indigo-600 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100">
-              <Activity size={20} className="text-white lg:scale-110" />
-            </div>
+            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-indigo-600 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100"><Activity size={20} className="text-white lg:scale-110" /></div>
             <span className="font-black text-xl lg:text-2xl tracking-tight text-slate-900">AutoAI</span>
           </div>
 
-          {/* Right: Notifications & User Profile */}
           <div className="flex items-center justify-end gap-2 md:gap-4 flex-1">
-            <button className="p-2.5 text-slate-400 hover:bg-slate-50 rounded-xl relative transition-all">
-              <Bell size={18} />
-              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-white"></span>
-            </button>
-            <div className="h-6 w-[1px] bg-slate-100 mx-1 hidden sm:block"></div>
+            <button className="p-2.5 text-slate-400 hover:bg-slate-50 rounded-xl relative transition-all"><Bell size={18} /><span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-white"></span></button>
             <div className="hidden sm:flex flex-col items-end">
               <p className="text-[10px] font-black uppercase text-slate-900 leading-none mb-1">{session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}</p>
               <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Online</p>
             </div>
-            {session?.user?.user_metadata?.avatar_url && (
-              <img 
-                src={session.user.user_metadata.avatar_url} 
-                alt="Profile" 
-                className="w-9 h-9 rounded-xl object-cover border border-slate-200 shadow-sm hidden sm:block"
-              />
-            )}
           </div>
         </header>
 
-        {/* Dynamic Content */}
         <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12 bg-[#fcfcfd]">
           <div className="max-w-6xl mx-auto h-full">
             <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="h-full"
-              >
+              <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="h-full">
                 <div className="mb-8">
                   <h1 className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">
                     {navItems.find(i => i.id === activeTab)?.label}
                     {isDemoMode && <span className="ml-2 bg-amber-100 text-amber-700 text-[9px] px-2 py-0.5 rounded-full border border-amber-200">DEV MODE</span>}
                   </h1>
-                  <p 
-                    onClick={handleVersionClick}
-                    className="text-slate-400 text-xs font-medium cursor-pointer select-none active:opacity-50 transition-opacity"
-                  >
-                    AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг
-                  </p>
+                  <p onClick={handleVersionClick} className="text-slate-400 text-xs font-medium cursor-pointer select-none active:opacity-50 transition-opacity">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
                 </div>
                 {renderContent()}
               </motion.div>
@@ -492,85 +418,32 @@ export default function App() {
           </div>
         </main>
 
-        {/* Bottom Navigation (Mobile/Tablet) */}
         <nav className="lg:hidden fixed bottom-6 left-6 right-6 h-20 bg-white/80 backdrop-blur-xl border border-white/20 shadow-2xl rounded-[32px] flex items-center justify-around px-6 z-50">
           {bottomNavItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as Tab)}
-              className="relative flex flex-col items-center justify-center gap-1 group"
-            >
-              <div className={`p-3 rounded-2xl transition-all duration-300 ${activeTab === item.id ? 'bg-indigo-600 text-white -translate-y-2 shadow-lg shadow-indigo-200' : 'text-slate-400 hover:text-slate-600'}`}>
-                <item.icon size={22} />
-              </div>
-              {activeTab === item.id && (
-                <motion.span 
-                  layoutId="bottom-label"
-                  className="text-[10px] font-black text-indigo-600 uppercase tracking-widest"
-                >
-                  {item.label}
-                </motion.span>
-              )}
+            <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className="relative flex flex-col items-center justify-center gap-1 group">
+              <div className={`p-3 rounded-2xl transition-all duration-300 ${activeTab === item.id ? 'bg-indigo-600 text-white -translate-y-2 shadow-lg shadow-indigo-200' : 'text-slate-400 hover:text-slate-600'}`}><item.icon size={22} /></div>
+              {activeTab === item.id && <motion.span layoutId="bottom-label" className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{item.label}</motion.span>}
             </button>
           ))}
         </nav>
       </div>
 
-      {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-[60] lg:hidden">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            />
-            <motion.aside 
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              className="absolute left-0 top-0 bottom-0 w-80 bg-white p-8 flex flex-col shadow-2xl"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsMobileMenuOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <motion.aside initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} className="absolute left-0 top-0 bottom-0 w-80 bg-white p-8 flex flex-col shadow-2xl">
               <div className="flex justify-between items-center mb-12">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Activity size={24} className="text-white" />
-                  </div>
-                  <span className="font-black text-2xl tracking-tight">AutoAI</span>
-                </div>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-400 hover:text-slate-900">
-                  <X size={24} />
-                </button>
+                <div className="flex items-center gap-3"><div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg"><Activity size={24} className="text-white" /></div><span className="font-black text-2xl tracking-tight">AutoAI</span></div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
               </div>
               <nav className="flex-1 space-y-2">
                 {navItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveTab(item.id as Tab);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
-                  >
-                    <item.icon size={22} />
-                    <span>{item.label}</span>
-                  </button>
+                  <button key={item.id} onClick={() => { setActiveTab(item.id as Tab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}><item.icon size={22} /><span>{item.label}</span></button>
                 ))}
               </nav>
               <div className="mt-auto pt-8 border-t border-slate-100 flex items-center gap-4">
-                {session?.user?.user_metadata?.avatar_url ? (
-                  <img 
-                    src={session.user.user_metadata.avatar_url} 
-                    alt="Avatar" 
-                    className="w-12 h-12 rounded-full object-cover border-2 border-indigo-50"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">
-                    {session?.user?.email?.[0]?.toUpperCase()}
-                  </div>
-                )}
+                <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">{session?.user?.email?.[0]?.toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black text-slate-900 truncate">{session?.user?.user_metadata?.full_name}</p>
                   <button onClick={handleLogout} className="text-xs font-bold text-rose-500 hover:text-rose-600">Выйти</button>
@@ -580,7 +453,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
       <Toaster position="bottom-right" richColors />
     </div>
   );
