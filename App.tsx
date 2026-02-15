@@ -395,7 +395,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+    <div className="flex min-h-screen bg-[#f4f7fe] font-sans text-slate-900 overflow-hidden">
       <aside className={`hidden lg:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-72' : 'w-24'}`}>
         <div className="p-8 flex items-center gap-3 overflow-hidden">
           <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-100">
@@ -460,7 +460,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12 bg-[#fcfcfd]">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-12 pb-32 lg:pb-12 bg-[#f4f7fe]">
           <div className="max-w-6xl mx-auto h-full">
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="h-full">
