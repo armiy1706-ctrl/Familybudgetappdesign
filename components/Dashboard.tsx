@@ -110,6 +110,13 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
     return Math.round(Math.max(0, Math.min(100, (remaining / totalDistance) * 100)));
   };
 
+  const getBrakePercentage = () => {
+    if (!brakeStatus) return 100;
+    const totalDistance = brakeStatus.nextKm - brakeStatus.lastKm;
+    const remaining = brakeStatus.nextKm - currentOdometer;
+    return Math.round(Math.max(0, Math.min(100, (remaining / totalDistance) * 100)));
+  };
+
   const getOverallHealthScore = () => {
     const oil = getOilPercentage();
     const brakes = getBrakePercentage();
@@ -165,7 +172,10 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                 <div className="h-12 w-1 bg-white/20 rounded-full"></div>
                 <div>
                   <div className={`flex items-center gap-1 ${healthInfo.color} font-bold`}>
-                    <healthInfo.icon size={18} />
+                    {(() => {
+                      const Icon = healthInfo.icon;
+                      return <Icon size={18} />;
+                    })()}
                     <span>{healthInfo.label}</span>
                   </div>
                   <p className="text-indigo-200 text-sm">{healthInfo.desc}</p>
