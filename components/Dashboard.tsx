@@ -194,10 +194,15 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               
               <button 
                 onClick={() => setShowOdometerModal(true)}
-                className="w-full md:w-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold text-[13px] transition-all inline-flex items-center justify-center gap-2 border border-white/20 backdrop-blur-sm active:scale-95"
+                className="w-full md:w-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold text-[13px] transition-all flex flex-col items-center justify-center gap-0.5 border border-white/20 backdrop-blur-sm active:scale-95 group relative"
               >
-                <Gauge size={16} className="text-indigo-300" />
-                Пробег: <span className="text-white">{currentOdometer.toLocaleString()} км</span>
+                <div className="flex items-center gap-2">
+                  <Gauge size={16} className="text-indigo-300" />
+                  <span>Пробег: <span className="text-white">{currentOdometer.toLocaleString()} км</span></span>
+                </div>
+                <span className="text-[7px] font-black text-white/40 uppercase tracking-widest animate-pulse">
+                  НАЖМИТЕ ДЛЯ ВВОДА
+                </span>
               </button>
             </div>
           </div>
@@ -404,14 +409,26 @@ const ServiceModal = ({ isOpen, onClose, title, icon: Icon, colorClass, bgClass,
 };
 
 const HealthMiniCard = ({ icon: Icon, label, status, subStatus, color, onClick }: any) => (
-  <div onClick={onClick} className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 min-w-[120px] cursor-pointer hover:bg-white/20 transition-all flex flex-col justify-between">
+  <div onClick={onClick} className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 min-w-[120px] cursor-pointer hover:bg-white/20 transition-all flex flex-col justify-between relative group overflow-hidden">
     <div>
       <Icon size={20} className={color} />
       <p className="mt-2 text-[10px] font-bold text-indigo-200 uppercase tracking-widest">{label}</p>
     </div>
-    <div>
+    <div className="mt-1">
       <p className="text-lg font-black leading-none">{status}</p>
       {subStatus && <p className="text-[9px] text-white/50 mt-1 font-medium">{subStatus}</p>}
+    </div>
+    
+    {/* Pulsing Hint */}
+    <div className="absolute inset-x-0 bottom-1 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+       <span className="text-[7px] font-black text-white/40 uppercase tracking-tighter animate-pulse">
+         Нажмите для ввода
+       </span>
+    </div>
+    
+    {/* Mobile Hint (visible by default but very subtle) */}
+    <div className="lg:hidden absolute bottom-1 right-2">
+       <div className="w-1 h-1 bg-white/30 rounded-full animate-pulse" />
     </div>
   </div>
 );
