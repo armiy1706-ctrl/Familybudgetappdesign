@@ -38,7 +38,6 @@ async function secureRequest(url: string, options: any, body?: string): Promise<
         }
         
         try {
-          // Check if data is empty
           if (!data.trim()) {
             resolve({});
             return;
@@ -46,7 +45,6 @@ async function secureRequest(url: string, options: any, body?: string): Promise<
           const parsed = JSON.parse(data);
           resolve(parsed);
         } catch (e) {
-          // If not JSON, return as string but wrap in object to be safe for callGigaChat logic
           resolve({ raw: data });
         }
       });
@@ -148,7 +146,6 @@ app.post('/diagnose', async (c) => {
     let results = [];
     let message = content;
 
-    // More robust extraction: find the LAST valid JSON object in the string
     const allMatches = content.match(/\{[\s\S]*?\}/g);
     if (allMatches) {
       for (let i = allMatches.length - 1; i >= 0; i--) {
@@ -159,9 +156,7 @@ app.post('/diagnose', async (c) => {
             message = content.replace(allMatches[i], '').trim();
             break;
           }
-        } catch {
-          // Continue to previous match if this one is not valid JSON
-        }
+        } catch { }
       }
     }
 
