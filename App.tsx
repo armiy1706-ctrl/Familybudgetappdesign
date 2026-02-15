@@ -52,6 +52,8 @@ export default function App() {
     brakeStatus: null
   });
 
+  const BUILD_VERSION = "4.2.5-stable";
+
   // Persistence: Save active car, chat and dashboard to localStorage
   useEffect(() => {
     const savedCars = localStorage.getItem('autoai_cars');
@@ -382,7 +384,7 @@ export default function App() {
                   <h1 className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">
                     {navItems.find(i => i.id === activeTab)?.label}
                   </h1>
-                  <p className="text-slate-400 text-xs font-medium">AutoAI v4.2 • Профессиональная диагностика и мониторинг</p>
+                  <p className="text-slate-400 text-xs font-medium">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
                 </div>
                 {renderContent()}
               </motion.div>
