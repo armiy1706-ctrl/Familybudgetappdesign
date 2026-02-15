@@ -14,7 +14,8 @@ import {
   X, 
   Gauge, 
   Zap,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -166,9 +167,10 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             <div className="flex flex-col items-center md:items-start gap-3">
               <button 
                 onClick={() => onNavigate('diagnostics')}
-                className="w-full md:w-auto bg-white text-indigo-600 px-6 py-4 rounded-2xl font-bold text-sm hover:bg-indigo-50 transition-all inline-flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                className="w-full md:w-auto bg-white text-indigo-600 px-6 py-4 rounded-2xl font-bold text-sm hover:bg-indigo-50 transition-all inline-flex items-center justify-center gap-4 shadow-lg active:scale-95 group"
               >
-                Полная диагностика
+                <Sparkles size={20} className="text-indigo-600 group-hover:rotate-12 transition-transform" />
+                ЗАПУСТИТЬ ИИ-АНАЛИЗ
                 <ChevronRight size={16} />
               </button>
               
@@ -209,7 +211,6 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
         </div>
       </div>
 
-      {/* Main Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
           <div className="flex justify-between items-center">
@@ -257,7 +258,6 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
         </div>
       </div>
 
-      {/* Modals */}
       <ServiceModal 
         isOpen={showOilModal} 
         onClose={() => setShowOilModal(false)} 
