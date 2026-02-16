@@ -16,9 +16,23 @@ app.use('*', cors({
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 
-async function callOpenAI(prompt: string, text: string) {
+async function callOpenAI(prompt: string, text: string, imageBase64?: string) {
   if (!OPENAI_API_KEY) throw new Error("OpenAI API Key missing");
   
+  const messages: any[] = [{ role: 'system', content: prompt }];
+  
+  if (imageBase64) {
+    messages.push({
+      role: 'user',
+      content: [
+        { type: 'text', text: text || "Проанализируй это изображение автомобиля на наличие неисправностей." },
+        { type: 'image_url', image_url: { url: imageBase64 } }
+      ]
+    });
+  } else {
+    messages.push({ role: 'user', content: text });
+  }
+
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -27,8 +41,8 @@ async function callOpenAI(prompt: string, text: string) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // Try a cheaper/more available model first or as fallback
-        messages: [{ role: 'system', content: prompt }, { role: 'user', content: text }],
+        model: 'gpt-4o-mini',
+        messages: messages,
         temperature: 0.7,
       })
     });
@@ -54,15 +68,15 @@ async function callOpenAI(prompt: string, text: string) {
 app.post('/diagnose', async (c) => {
   try {
     const body = await c.req.json();
-    const { text, carInfo } = body;
+    const { text, carInfo, image } = body;
 
-    const systemPrompt = `Ты — профессиональный ИИ-автомеханик. Проанализируй симптомы и выдай подробный ответ на русском языке.
+    const systemPrompt = `Ты — профессиональный ИИ-автомеханик. ${image ? 'Проанализируй приложенное изображение и текст.' : 'Проанализируй симптомы.'} Выдай подробный ответ на русском языке.
     В конце ответа ОБЯЗАТЕЛЬНО добавь JSON блок в ОДНУ СТРОКУ:
     {"results": [{"diagnosis": "название", "confidence": 0.9, "description": "описание", "risk": "Средний", "urgency": "Планово", "estimatedCost": "1000 руб"}]}
     
     Авто: ${carInfo?.make || 'Неизвестно'} ${carInfo?.model || ''}. Пробег: ${carInfo?.mileage || 0} км.`;
 
-    const content = await callOpenAI(systemPrompt, text);
+    const content = await callOpenAI(systemPrompt, text, image);
 
     let results = [];
     let message = content;
