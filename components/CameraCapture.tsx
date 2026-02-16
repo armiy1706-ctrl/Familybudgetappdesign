@@ -22,10 +22,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ isOpen, onClose, o
         stream.getTracks().forEach(track => track.stop());
       }
       
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      const constraints: MediaStreamConstraints = {
+        video: { 
+          facingMode: facingMode,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 16/9 }
+        },
         audio: false
-      });
+      };
+      
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
       
       setStream(newStream);
       if (videoRef.current) {
@@ -102,7 +109,15 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ isOpen, onClose, o
                 <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-indigo-500 -mb-1 -ml-1 rounded-bl-lg" />
                 <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-indigo-500 -mb-1 -mr-1 rounded-br-lg" />
                 
-                <div className="absolute inset-0 bg-indigo-500/10 animate-pulse rounded-3xl" />
+                <div className="absolute inset-0 bg-indigo-500/10 rounded-3xl overflow-hidden">
+                  <motion.div 
+                    initial={{ top: "-10%" }}
+                    animate={{ top: "110%" }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute left-0 right-0 h-[2px] bg-indigo-400 shadow-[0_0_20px_2px_rgba(129,140,248,0.8)]"
+                  />
+                  <div className="absolute inset-0 animate-pulse bg-indigo-500/5" />
+                </div>
               </div>
             </div>
 
