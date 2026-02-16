@@ -34,7 +34,6 @@ import {
 import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
-import JSZip from 'https://cdn.skypack.dev/jszip';
 
 // --- Interfaces ---
 
@@ -95,6 +94,16 @@ export const AdvancedMaintenanceJournal = ({
   const [tempReceiptImage, setTempReceiptImage] = useState<string | null>(null);
   const [isPhotoViewOpen, setIsPhotoViewOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+
+  // Load JSZip dynamically to avoid build-time resolution issues
+  useEffect(() => {
+    if (!(window as any).JSZip) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   // Persistence
   useEffect(() => {
@@ -216,10 +225,17 @@ export const AdvancedMaintenanceJournal = ({
 
   const exportArchive = async () => {
     if (!activeCar) return;
+    const JSZipLib = (window as any).JSZip;
+    
+    if (!JSZipLib) {
+      toast.error("Библиотека архивации еще загружается. Попробуйте через секунду.");
+      return;
+    }
+
     toast.info("Подготовка архива...");
     
     try {
-      const zip = new JSZip();
+      const zip = new JSZipLib();
       
       // CSV Content
       const headers = ['Дата', 'Тип', 'Описание', 'Сумма (₽)', 'Файл чека'];
@@ -239,8 +255,11 @@ export const AdvancedMaintenanceJournal = ({
       if (imgFolder) {
         for (const record of carRecords) {
           if (record.receiptImage) {
-            const base64Data = record.receiptImage.split(',')[1];
-            imgFolder.file(`receipt_${record.id}.png`, base64Data, { base64: true });
+            const base64Parts = record.receiptImage.split(',');
+            if (base64Parts.length > 1) {
+              const base64Data = base64Parts[1];
+              imgFolder.file(`receipt_${record.id}.png`, base64Data, { base64: true });
+            }
           }
         }
       }
