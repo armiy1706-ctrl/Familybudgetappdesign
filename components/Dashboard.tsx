@@ -299,8 +299,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               <motion.div 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={onOpenCamera}
-                className="w-full md:w-[400px] bg-gradient-to-br from-amber-400 to-orange-500 rounded-[32px] p-6 text-white shadow-2xl relative overflow-hidden group cursor-pointer transition-all border border-white/20"
+                className="w-full md:w-[400px] bg-indigo-500 rounded-[32px] p-6 text-white shadow-2xl relative overflow-hidden group transition-all border border-white/20"
               >
                 <div className="relative z-10">
                   <div className="flex justify-between items-start mb-4">
@@ -312,9 +311,9 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                         Анализ<br/>неисправности по фото
                       </h3>
                     </div>
-                    <div className="bg-orange-600/30 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-white/10">
-                      <Clock size={12} className="text-amber-200" />
-                      <span className="text-xs font-black text-amber-100">2</span>
+                    <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-white/10">
+                      <Clock size={12} className="text-indigo-100" />
+                      <span className="text-xs font-black text-indigo-50">2</span>
                     </div>
                   </div>
                   
@@ -322,13 +321,19 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                     Сфотографируйте ваш автомобиль, ИИ мгновенно диагностирует и предложит решение!
                   </p>
                   
-                  <div className="bg-white rounded-[20px] py-4 flex items-center justify-center gap-3 text-orange-600 font-black text-xs shadow-lg group-hover:bg-orange-50 transition-colors">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenCamera();
+                    }}
+                    className="w-full bg-white rounded-[20px] py-4 flex items-center justify-center gap-3 text-indigo-600 font-black text-xs shadow-lg hover:bg-indigo-50 transition-colors active:scale-95 cursor-pointer"
+                  >
                     <span className="text-lg">📸</span>
                     <span>Сфотографировать или загрузить</span>
-                  </div>
+                  </button>
                   
                   <div className="mt-4 flex items-center justify-center gap-2 opacity-80">
-                    <Sparkles size={12} className="text-amber-200 animate-pulse" />
+                    <Sparkles size={12} className="text-indigo-200 animate-pulse" />
                     <span className="text-[9px] font-black uppercase tracking-[0.1em] text-white">
                       Первое использование бесплатно!
                     </span>
@@ -336,6 +341,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                 </div>
                 
                 <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+                <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-indigo-400/20 to-transparent pointer-events-none" />
               </motion.div>
             </div>
           </div>
