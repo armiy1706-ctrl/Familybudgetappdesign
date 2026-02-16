@@ -14,7 +14,7 @@ import {
   X, 
   Gauge, 
   Zap,
-  Trash2,
+  Copy,
   Sparkles
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -225,12 +225,16 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           </div>
         </div>
         <div className="flex gap-2">
-          {activeCar && (
+          {activeCar?.vin && (
             <button 
-              onClick={() => onDeleteCar(activeCar.id)} 
-              className="p-3 bg-white border border-rose-100 rounded-2xl text-rose-500 hover:bg-rose-50 shadow-sm transition-all"
+              onClick={() => {
+                navigator.clipboard.writeText(activeCar.vin);
+                toast.success('VIN скопирован');
+              }} 
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50 shadow-sm transition-all"
             >
-              <Trash2 size={20} />
+              <Copy size={16} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Копировать VIN</span>
             </button>
           )}
           <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all">
@@ -368,7 +372,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             {brakeStatus && getBrakePercentage() < 30 ? (
               <RecommendationItem 
                 title="Износ тормозных колодок" 
-                desc={`Ресурс тормозной системы: ${getBrakePercentage()}%. Эффективность торможения может быть снижена.`} 
+                desc={`Ресурс тормозной системы: ${getBrakePercentage()}%. Эффе��тивность торможения может быть снижена.`} 
                 severity="Средний" 
                 severityColor="text-amber-500"
               />
