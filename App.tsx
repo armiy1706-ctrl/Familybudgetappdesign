@@ -174,6 +174,34 @@ export default function App() {
     }
   };
 
+  const sendReportToTelegram = async (pdfBase64: string, carName: string) => {
+    const tgId = session?.user?.user_metadata?.telegram_id;
+    if (!tgId) {
+      toast.error("Telegram ID не найден");
+      return;
+    }
+
+    toast.promise(
+      fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/send-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
+        body: JSON.stringify({ 
+          tgId, 
+          pdfBase64, 
+          fileName: `AutoAI_Report_${carName.replace(/\s+/g, '_')}.pdf` 
+        })
+      }).then(res => {
+        if (!res.ok) throw new Error("Failed to send");
+        return res.json();
+      }),
+      {
+        loading: 'Отправка отчета в Telegram...',
+        success: 'Отчет успешно отправлен в ваш чат с ботом!',
+        error: 'Ошибка при отправке в Telegram'
+      }
+    );
+  };
+
   const switchCar = (index: number) => {
     setActiveCarIndex(index);
     setActiveTab('dashboard');
@@ -385,6 +413,7 @@ export default function App() {
                     cars={cars} 
                     onAddCar={addCar} 
                     onDeleteCar={deleteCar} 
+                    onSendToTelegram={sendReportToTelegram}
                   />
                 )}
                 {activeTab === 'diagnostics' && (
