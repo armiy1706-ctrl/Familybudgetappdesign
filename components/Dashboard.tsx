@@ -218,10 +218,15 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">
             {activeCar ? `${activeCar.make} ${activeCar.model}` : 'Добавьте автомобиль'}
           </h2>
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
             <p className="text-slate-500 font-medium">
               {activeCar ? `VIN: ${activeCar.vin || '************'} • ${activeCar.year} г.в.` : 'Гараж пуст'}
             </p>
+            {activeCar?.licensePlate && (
+              <span className="text-[10px] bg-white text-slate-900 px-2 py-0.5 rounded border-2 border-slate-900 font-black tracking-tighter uppercase shadow-sm">
+                {activeCar.licensePlate}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
