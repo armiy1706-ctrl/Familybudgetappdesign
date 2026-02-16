@@ -10,24 +10,80 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  image?: string;
   results?: any[];
   isError?: boolean;
 }
 
-export const DiagnosticChat = ({ messages, setMessages, activeCar }: { 
+export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage, onClearPendingImage }: { 
   messages: Message[], 
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
-  activeCar: any
+  activeCar: any,
+  pendingImage: string | null,
+  onClearPendingImage: () => void
 }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (pendingImage) {
+      handleImageAnalysis(pendingImage);
+      onClearPendingImage();
     }
-  }, [messages, isTyping]);
+  }, [pendingImage]);
+
+  const handleImageAnalysis = async (imageData: string) => {
+    const userMsg: Message = { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: 'Я загрузил фото для анализа неисправности.',
+      image: imageData 
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setIsTyping(true);
+
+    try {
+      const res = await fetch(`${API_URL}/diagnose`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ 
+          text: 'Проанализируй фото неисправности автомобиля.', 
+          image: imageData,
+          carInfo: activeCar ? { 
+            make: activeCar.make, 
+            model: activeCar.model, 
+            year: activeCar.year,
+            vin: activeCar.vin,
+            mileage: activeCar.mileage,
+            engine: activeCar.engine
+          } : null 
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) throw { message: data.details || data.error || 'Ошибка сервера', isQuota: data.isQuotaError };
+      
+      const assistantMsg: Message = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'assistant', 
+        content: data.message || 'Анализ фото завершен.',
+        results: data.results || []
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (err: any) {
+      console.error('Image analysis error:', err);
+      const errorMessage = err.isQuota ? "Превышена квота OpenAI." : `Ошибка: ${err.message}`;
+      toast.error(errorMessage);
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: errorMessage, isError: true }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -138,6 +194,11 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar }: {
               </div>
               <div className="space-y-4">
                 <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-indigo-600 text-white' : msg.isError ? 'bg-white text-rose-700 border border-rose-100' : 'bg-white text-slate-800 border border-slate-100'}`}>
+                  {msg.image && (
+                    <div className="mb-3 rounded-xl overflow-hidden border border-white/20">
+                      <img src={msg.image} alt="Capture" className="w-full h-auto max-h-60 object-cover" />
+                    </div>
+                  )}
                   {msg.content}
                   
                   {msg.role === 'assistant' && !msg.isError && msg.id !== 'err' && (
