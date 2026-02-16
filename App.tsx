@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { Toaster } from 'sonner';
 import { Dashboard } from './components/Dashboard';
 import { DiagnosticChat } from './components/DiagnosticChat';
-import { MaintenanceLog } from './components/MaintenanceLog';
+import { AdvancedMaintenanceJournal } from './components/AdvancedMaintenanceJournal';
 import { OBDScanner } from './components/OBDScanner';
 import { KnowledgeBase } from './components/KnowledgeBase';
 import { Profile } from './components/Profile';
