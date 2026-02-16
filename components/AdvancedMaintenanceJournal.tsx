@@ -102,37 +102,35 @@ const StatBox = ({ label, value, icon: Icon, color }: any) => (
   </div>
 );
 
-export const AdvancedMaintenanceJournal = () => {
+export const AdvancedMaintenanceJournal = ({ 
+  cars = [], 
+  onAddCar, 
+  onDeleteCar 
+}: { 
+  cars: any[], 
+  onAddCar?: (car: any) => void, 
+  onDeleteCar?: (id: string) => void 
+}) => {
   const [activeSubTab, setActiveSubTab] = useState('dashboard');
-  const [showAddCarModal, setShowAddCarModal] = useState(false);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   
-  // Data State
-  const [cars, setCars] = useState<Car[]>([
-    { id: '1', make: 'BMW', model: 'X5 M50d', year: 2021, vin: 'WBAJU81000...442', plate: 'A777AA77', photoUrl: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=400&q=80', status: 'active' },
-    { id: '2', make: 'Tesla', model: 'Model 3', year: 2022, vin: '5YJ3E1EA...928', plate: 'B888BB88', photoUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=400&q=80', status: 'active' }
-  ]);
+  // Entries state (local for now, as requested "local version offline (optional)")
+  const [entries, setEntries] = useState<MaintenanceEntry[]>([]);
 
-  const [entries, setEntries] = useState<MaintenanceEntry[]>([
-    {
-      id: 'e1',
-      carId: '1',
-      title: 'Замена масла и фильтров',
-      date: '2026-02-01',
-      mileage: 45200,
-      description: 'Плановое ТО-3, проверка ходовой части',
-      master: 'BMW Service Center',
-      parts: [
-        { id: 'p1', name: 'Масло Motul 5W30', sku: 'MOT-530-5', quantity: 7, pricePerUnit: 1200, totalPrice: 8400 },
-        { id: 'p2', name: 'Фильтр масляный', sku: 'MAN-712', quantity: 1, pricePerUnit: 950, totalPrice: 950 }
-      ],
-      labor: [
-        { id: 'l1', description: 'Замена масла', hours: 1, ratePerHour: 2500, totalLaborCost: 2500 }
-      ],
-      totalCost: 11850,
-      currency: 'RUB'
+  useEffect(() => {
+    const savedEntries = localStorage.getItem('autoai_maintenance_entries');
+    if (savedEntries) {
+      try {
+        setEntries(JSON.parse(savedEntries));
+      } catch (e) {
+        console.error("Failed to load entries", e);
+      }
     }
-  ]);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('autoai_maintenance_entries', JSON.stringify(entries));
+  }, [entries]);
 
   // Form States
   const [newEntry, setNewEntry] = useState<Partial<MaintenanceEntry>>({
@@ -143,11 +141,18 @@ export const AdvancedMaintenanceJournal = () => {
     currency: 'RUB'
   });
 
+  // Automatically update selected carId when cars change if none selected
+  useEffect(() => {
+    if (!newEntry.carId && cars.length > 0) {
+      setNewEntry(prev => ({ ...prev, carId: cars[0].id }));
+    }
+  }, [cars]);
+
   // Calculations
   const totalStats = useMemo(() => {
-    const total = entries.reduce((acc, curr) => acc + curr.totalCost, 0);
+    const total = entries.reduce((acc, curr) => acc + (curr.totalCost || 0), 0);
     const partsTotal = entries.reduce((acc, curr) => 
-      acc + curr.parts.reduce((pAcc, p) => pAcc + p.totalPrice, 0), 0
+      acc + (curr.parts?.reduce((pAcc, p) => pAcc + (p.totalPrice || 0), 0) || 0), 0
     );
     return { total, partsTotal, activeCars: cars.length, entryCount: entries.length };
   }, [entries, cars]);
@@ -286,18 +291,23 @@ export const AdvancedMaintenanceJournal = () => {
                 <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col">
                   <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-6">Ваши Автомобили</h3>
                   <div className="space-y-4 flex-1">
-                    {cars.map(car => (
+                    {cars.length > 0 ? cars.map(car => (
                       <div key={car.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-3xl group hover:bg-white hover:shadow-md transition-all">
                         <div className="w-16 h-12 rounded-2xl overflow-hidden shrink-0 border border-white">
                           <ImageWithFallback src={car.photoUrl} alt={car.model} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-black text-slate-900 text-sm truncate uppercase tracking-tight">{car.make} {car.model}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{car.plate}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{car.plate || 'Нет номера'}</p>
                         </div>
                         <div className="w-2 h-2 rounded-full bg-emerald-500" />
                       </div>
-                    ))}
+                    )) : (
+                      <div className="flex flex-col items-center justify-center py-10 opacity-40">
+                        <CarIcon size={32} />
+                        <p className="text-[10px] font-black uppercase tracking-widest mt-2">Нет машин</p>
+                      </div>
+                    )}
                   </div>
                   <button 
                     onClick={() => setActiveSubTab('cars')}
