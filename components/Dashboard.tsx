@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
+import { CameraCapture } from './CameraCapture';
 
 interface ServiceFormData {
   date: string;
@@ -40,12 +41,13 @@ interface BatteryFormData {
   trips: 'short' | 'daily' | 'long' | 'rare';
 }
 
-export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar }: { 
+export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar, onOpenCamera }: { 
   onNavigate: (tab: string) => void, 
   activeCar?: any,
   dashboardData: any,
   setDashboardData: (data: any) => void,
-  onDeleteCar: (id: string) => void
+  onDeleteCar: (id: string) => void,
+  onOpenCamera: () => void
 }) => {
   const [showOilModal, setShowOilModal] = useState(false);
   const [showBrakeModal, setShowBrakeModal] = useState(false);
@@ -297,7 +299,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               <motion.div 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => onNavigate('diagnostics')}
+                onClick={onOpenCamera}
                 className="w-full md:w-[400px] bg-gradient-to-br from-amber-400 to-orange-500 rounded-[32px] p-6 text-white shadow-2xl relative overflow-hidden group cursor-pointer transition-all border border-white/20"
               >
                 <div className="relative z-10">
