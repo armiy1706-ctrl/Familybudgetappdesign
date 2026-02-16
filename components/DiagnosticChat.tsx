@@ -195,8 +195,22 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage,
               <div className="space-y-4">
                 <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-indigo-600 text-white' : msg.isError ? 'bg-white text-rose-700 border border-rose-100' : 'bg-white text-slate-800 border border-slate-100'}`}>
                   {msg.image && (
-                    <div className="mb-3 rounded-xl overflow-hidden border border-white/20">
+                    <div className="mb-3 rounded-xl overflow-hidden border border-white/20 relative group">
                       <img src={msg.image} alt="Capture" className="w-full h-auto max-h-60 object-cover" />
+                      {isTyping && msg.id === messages[messages.length - 1].id && (
+                        <div className="absolute inset-0 bg-indigo-600/20 flex flex-col items-center justify-center backdrop-blur-[2px]">
+                          <motion.div 
+                            initial={{ top: "0%" }}
+                            animate={{ top: "100%" }}
+                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                            className="absolute left-0 right-0 h-1 bg-indigo-400 shadow-[0_0_15px_rgba(129,140,248,0.8)] z-10"
+                          />
+                          <div className="bg-white/90 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl">
+                            <Loader2 size={14} className="text-indigo-600 animate-spin" />
+                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">Vision AI Analyzing...</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {msg.content}
