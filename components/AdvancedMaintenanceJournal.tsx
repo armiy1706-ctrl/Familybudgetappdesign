@@ -134,49 +134,64 @@ export const AdvancedMaintenanceJournal = ({
 
   // Cleanup: Remove entries for cars that no longer exist
   useEffect(() => {
-    if (entries.length > 0) {
-      const existingCarIds = new Set(cars.map(c => c.id));
-      const filteredEntries = entries.filter(entry => existingCarIds.has(entry.carId));
-      
-      if (filteredEntries.length !== entries.length) {
-        setEntries(filteredEntries);
-      }
+    const existingCarIds = new Set(cars.map(c => c.id));
+    const filteredEntries = entries.filter(entry => existingCarIds.has(entry.carId));
+    
+    if (filteredEntries.length !== entries.length) {
+      setEntries(filteredEntries);
     }
-  }, [cars]);
+  }, [cars, entries.length]); // Track entries length too
 
   // Form States
   const [newEntry, setNewEntry] = useState<Partial<MaintenanceEntry>>({
-    carId: cars[0]?.id || '',
+    carId: '',
     date: new Date().toISOString().split('T')[0],
     parts: [],
     labor: [],
     currency: 'RUB'
   });
 
-  // Automatically update selected carId when cars change if none selected
+  // Automatically update selected carId when cars change if none selected or selected one deleted
   useEffect(() => {
-    if (!newEntry.carId && cars.length > 0) {
-      setNewEntry(prev => ({ ...prev, carId: cars[0].id }));
+    if (cars.length > 0) {
+      const exists = cars.some(c => c.id === newEntry.carId);
+      if (!exists) {
+        setNewEntry(prev => ({ ...prev, carId: cars[0].id }));
+      }
+    } else {
+      setNewEntry(prev => ({ ...prev, carId: '' }));
     }
-  }, [cars]);
+  }, [cars, newEntry.carId]);
 
   // Calculations
   const totalStats = useMemo(() => {
-    const total = entries.reduce((acc, curr) => acc + (curr.totalCost || 0), 0);
-    const partsTotal = entries.reduce((acc, curr) => 
+    // Double check filtering for safety in calculations
+    const existingCarIds = new Set(cars.map(c => c.id));
+    const validEntries = entries.filter(e => existingCarIds.has(e.carId));
+    
+    const total = validEntries.reduce((acc, curr) => acc + (curr.totalCost || 0), 0);
+    const partsTotal = validEntries.reduce((acc, curr) => 
       acc + (curr.parts?.reduce((pAcc, p) => pAcc + (p.totalPrice || 0), 0) || 0), 0
     );
-    return { total, partsTotal, activeCars: cars.length, entryCount: entries.length };
+    return { total, partsTotal, activeCars: cars.length, entryCount: validEntries.length };
   }, [entries, cars]);
 
   const chartData = useMemo(() => {
-    return [
-      { name: 'Янв', cost: 12500 },
-      { name: 'Фев', cost: entries.reduce((acc, e) => e.date.includes('-02-') ? acc + e.totalCost : acc, 0) },
-      { name: 'Мар', cost: 0 },
-      { name: 'Апр', cost: 0 },
-    ];
-  }, [entries]);
+    const existingCarIds = new Set(cars.map(c => c.id));
+    const validEntries = entries.filter(e => existingCarIds.has(e.carId));
+    
+    // Group by month for current year
+    const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+    const currentMonth = new Date().getMonth();
+    
+    return months.slice(0, currentMonth + 1).map((name, index) => {
+      const monthStr = (index + 1).toString().padStart(2, '0');
+      const cost = validEntries.reduce((acc, e) => {
+        return e.date.includes(`-${monthStr}-`) ? acc + (e.totalCost || 0) : acc;
+      }, 0);
+      return { name, cost };
+    });
+  }, [entries, cars]);
 
   // Export Logic
   const exportToCSV = () => {
