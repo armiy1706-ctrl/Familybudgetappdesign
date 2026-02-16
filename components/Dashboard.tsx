@@ -321,16 +321,30 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                     Сфотографируйте ваш автомобиль, ИИ мгновенно диагностирует и предложит решение!
                   </p>
                   
-                  <button 
+                  <motion.button 
+                    animate={{ 
+                      boxShadow: ["0px 0px 0px rgba(255,255,255,0)", "0px 0px 15px rgba(255,255,255,0.5)", "0px 0px 0px rgba(255,255,255,0)"],
+                    }}
+                    transition={{ 
+                      duration: 2, 
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenCamera();
                     }}
                     className="w-full bg-white rounded-[20px] py-4 flex items-center justify-center gap-3 text-indigo-600 font-black text-xs shadow-lg hover:bg-indigo-50 transition-colors active:scale-95 cursor-pointer"
                   >
-                    <span className="text-lg">📸</span>
+                    <motion.span 
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="text-lg"
+                    >
+                      📸
+                    </motion.span>
                     <span>Сфотографировать или загрузить</span>
-                  </button>
+                  </motion.button>
                   
                   <div className="mt-4 flex items-center justify-center gap-2 opacity-80">
                     <Sparkles size={12} className="text-indigo-200 animate-pulse" />
@@ -359,6 +373,49 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           <Activity size={200} />
         </div>
       </div>
+
+      {/* Vision Gallery Section */}
+      {activeCar?.serviceHistory?.some((r: any) => r.type === 'Диагностика ИИ' && r.receiptImage) && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center px-2">
+            <div className="flex items-center gap-2">
+              <Camera size={18} className="text-indigo-600" />
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">История Vision-анализов</h3>
+            </div>
+            <button 
+              onClick={() => onNavigate('diagnostics')}
+              className="text-[10px] font-bold text-indigo-600 uppercase hover:underline"
+            >
+              Смотреть все
+            </button>
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+            {activeCar.serviceHistory
+              .filter((r: any) => r.type === 'Диагностика ИИ' && r.receiptImage)
+              .slice(0, 5)
+              .map((record: any, idx: number) => (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.1 }}
+                  key={record.id}
+                  className="shrink-0 w-40 group"
+                >
+                  <div className="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 mb-2">
+                    <img src={record.receiptImage} alt="Vision" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                      <p className="text-[10px] text-white font-bold leading-tight line-clamp-2">{record.description}</p>
+                    </div>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{record.date}</p>
+                    <p className="text-[11px] font-bold text-slate-800 truncate">{record.description}</p>
+                  </div>
+                </motion.div>
+              ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
