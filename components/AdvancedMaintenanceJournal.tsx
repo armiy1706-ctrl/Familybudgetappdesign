@@ -208,7 +208,12 @@ export const AdvancedMaintenanceJournal = ({
         if (data.date) setFormDate(data.date);
         toast.success("Данные чека успешно распознаны!");
       } else {
-        toast.error("Не удалось распознать данные автоматически");
+        const errorData = await response.json();
+        if (errorData.isQuotaError) {
+          toast.error("Квота OpenAI исчерпана. Пожалуйста, обновите API ключ в настройках профиля.", { duration: 5000 });
+        } else {
+          toast.error("Не удалось распознать данные автоматически: " + (errorData.details || "Ошибка сервера"));
+        }
       }
     } catch (err) {
       console.error("OCR Error:", err);
@@ -313,7 +318,7 @@ export const AdvancedMaintenanceJournal = ({
               : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
             }`}
           >
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeCarId === car.id ? 'bg-white/20' : 'bg-slate-50 text-slate-400'}`}>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeTab === 'maintenance' && activeCarId === car.id ? 'bg-white/20' : 'bg-slate-50 text-slate-400'}`}>
               <CarIcon size={16} />
             </div>
             <div className="text-left">
@@ -622,47 +627,26 @@ export const AdvancedMaintenanceJournal = ({
                       onChange={(e) => setFormAmount(e.target.value)}
                       className={`w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all ${isOcrLoading ? 'opacity-50' : ''}`}
                     />
-                    {isOcrLoading && <div className="absolute right-6 top-1/2 -translate-y-1/2"><Loader2 className="animate-spin text-indigo-600" size={16} /></div>}
+                    {isOcrLoading && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" size={20} /></div>}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Фото чека (необязательно)</label>
-                  <div className="flex items-center gap-4">
-                    {tempReceiptImage ? (
-                      <div className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-indigo-100 shrink-0">
-                        <img src={tempReceiptImage} alt="Receipt preview" className="w-full h-full object-cover" />
-                        <button 
-                          type="button"
-                          onClick={() => setTempReceiptImage(null)}
-                          className="absolute top-1 right-1 p-1 bg-rose-500 text-white rounded-lg shadow-lg"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button 
-                        type="button"
-                        onClick={() => setIsCameraOpen(true)}
-                        className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-100 bg-slate-50 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50 transition-all group shrink-0"
-                      >
-                        <Camera size={24} />
-                        <span className="text-[8px] font-black uppercase tracking-widest">Снять чек</span>
-                      </button>
-                    )}
-                    <div className="text-[10px] text-slate-400 font-medium">
-                      {tempReceiptImage 
-                        ? "Чек успешно зафиксирован и будет сохранен вместе с записью." 
-                        : "Вы можете сфотографировать бумажный чек или квитанцию для хранения в архиве."}
-                    </div>
-                  </div>
+                <div className="pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setIsCameraOpen(true)}
+                    className="w-full flex items-center justify-center gap-3 py-4 border-2 border-dashed border-indigo-200 rounded-2xl text-indigo-600 font-bold text-xs hover:bg-indigo-50 transition-all active:scale-[0.98]"
+                  >
+                    <Camera size={18} />
+                    <span>Сканировать чек (ИИ)</span>
+                  </button>
                 </div>
 
                 <button 
                   type="submit"
                   className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 mt-4 active:scale-[0.98]"
                 >
-                  Сохранить запись
+                  Добавить запись
                 </button>
               </form>
             </motion.div>
@@ -670,34 +654,14 @@ export const AdvancedMaintenanceJournal = ({
         )}
       </AnimatePresence>
 
-      {/* Photo View Modal */}
+      {/* Photo Viewer Modal */}
       <AnimatePresence>
         {isPhotoViewOpen && selectedReceipt && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsPhotoViewOpen(false)} className="absolute inset-0 bg-slate-900/90 backdrop-blur-xl" />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              exit={{ scale: 0.9, opacity: 0 }} 
-              className="relative z-10 max-w-4xl w-full flex flex-col items-center"
-            >
-              <button 
-                onClick={() => setIsPhotoViewOpen(false)} 
-                className="absolute -top-16 right-0 p-4 bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"
-              >
-                <X size={32} />
-              </button>
-              <img 
-                src={selectedReceipt} 
-                alt="Full receipt" 
-                className="w-full h-auto max-h-[80vh] object-contain rounded-3xl shadow-2xl border border-white/10" 
-              />
-              <div className="mt-6 flex items-center gap-3">
-                <div className="px-6 py-3 bg-white/10 backdrop-blur-md rounded-2xl flex items-center gap-2 text-white border border-white/10">
-                  <ImageIcon size={18} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Цифровая копия чека</span>
-                </div>
-              </div>
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsPhotoViewOpen(false)} className="absolute inset-0 bg-slate-900/90 backdrop-blur-md" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative z-10 max-w-2xl w-full">
+              <button onClick={() => setIsPhotoViewOpen(false)} className="absolute -top-12 right-0 p-2 text-white hover:text-indigo-400 transition-colors"><X size={32} /></button>
+              <img src={selectedReceipt} alt="Receipt" className="w-full h-auto rounded-3xl shadow-2xl border border-white/10" />
             </motion.div>
           </div>
         )}
