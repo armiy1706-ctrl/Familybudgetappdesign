@@ -34,7 +34,7 @@ import {
 import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
-import JSZip from 'jszip';
+import JSZip from 'https://cdn.skypack.dev/jszip';
 
 // --- Interfaces ---
 
