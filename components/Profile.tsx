@@ -24,6 +24,7 @@ interface CarFormData {
   make: string;
   model: string;
   vin: string;
+  licensePlate: string;
   year: string;
   engine: string;
   transmission: string;
@@ -213,6 +214,7 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
       make: finalMake,
       model: finalModel,
       vin: data.vin,
+      licensePlate: data.licensePlate,
       year: data.year,
       engine: data.engine,
       transmission: data.transmission,
@@ -311,6 +313,15 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
                 maxLength={17}
               />
               {errors.vin && <p className="text-rose-500 text-[10px] mt-1 font-bold">{errors.vin.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase text-slate-400 mb-2 tracking-widest">Гос. номер</label>
+              <input 
+                {...register('licensePlate')}
+                placeholder="А 000 АА 777"
+                className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all uppercase placeholder:normal-case"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -434,6 +445,7 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
                   year={car.year} 
                   active={index === activeCarIndex} 
                   vin={car.vin}
+                  licensePlate={car.licensePlate}
                   onClick={() => onSwitchCar(index)}
                   onDelete={() => onDeleteCar(car.id)}
                 />
@@ -473,7 +485,7 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
   );
 };
 
-const CarItem = ({ make, model, year, active, vin, onClick, onDelete }: any) => (
+const CarItem = ({ make, model, year, active, vin, licensePlate, onClick, onDelete }: any) => (
   <div 
     className={`flex items-center justify-between p-4 rounded-2xl transition-all border-2 ${active ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-100'}`}
   >
@@ -483,7 +495,14 @@ const CarItem = ({ make, model, year, active, vin, onClick, onDelete }: any) => 
       </div>
       <div>
         <p className="font-bold text-slate-900">{make} {model}</p>
-        <p className="text-[10px] text-slate-400 font-medium uppercase">{vin || 'VIN не указан'} • {year} г.в.</p>
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] text-slate-400 font-medium uppercase">{vin || 'VIN не указан'} • {year} г.в.</p>
+          {licensePlate && (
+            <span className="text-[9px] bg-white text-slate-900 px-1.5 py-0.5 rounded border border-slate-200 font-black tracking-tighter uppercase shadow-sm">
+              {licensePlate}
+            </span>
+          )}
+        </div>
       </div>
     </div>
     <div className="flex items-center gap-3">
