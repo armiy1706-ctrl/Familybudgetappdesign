@@ -231,10 +231,10 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                 navigator.clipboard.writeText(activeCar.vin);
                 toast.success('VIN скопирован');
               }} 
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50 shadow-sm transition-all"
+              title="Скопировать VIN"
+              className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm transition-all"
             >
-              <Copy size={16} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Копировать VIN</span>
+              <Copy size={20} />
             </button>
           )}
           <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-600 shadow-sm transition-all">
