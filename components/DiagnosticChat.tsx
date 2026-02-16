@@ -77,7 +77,9 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage,
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
       console.error('Image analysis error:', err);
-      const errorMessage = err.isQuota ? "Превышена квота OpenAI." : `Ошибка: ${err.message}`;
+      const errorMessage = err.isQuota 
+        ? "Ошибка: Квота OpenAI исчерпана. Пожалуйста, проверьте баланс в настройках профиля или обновите API ключ." 
+        : `Ошибка: ${err.message}`;
       toast.error(errorMessage);
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: errorMessage, isError: true }]);
     } finally {
@@ -134,7 +136,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage,
       console.error('Chat error:', err);
       
       const errorMessage = err.isQuota 
-        ? "Превышена квота OpenAI (429). Пожалуйста, проверьте баланс в личном кабинете OpenAI или обратитесь к администратору."
+        ? "Ошибка: Квота OpenAI исчерпана (429). Пожалуйста, проверьте баланс в настройках профиля или обновите API ключ."
         : `Ошибка: ${err.message || 'Сбой связи с сервером'}`;
 
       toast.error(errorMessage);
