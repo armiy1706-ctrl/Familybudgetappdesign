@@ -73,16 +73,22 @@ const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) =
 export const AdvancedMaintenanceJournal = ({ 
   cars = [], 
   onAddCar, 
-  onDeleteCar 
+  onDeleteCar,
+  onSendToTelegram
 }: { 
   cars: any[], 
   onAddCar?: (car: any) => void, 
-  onDeleteCar?: (id: string) => void 
+  onDeleteCar?: (id: string) => void,
+  onSendToTelegram?: (base64: string, carName: string) => void
 }) => {
   const [activeCarId, setActiveCarId] = useState<string | null>(cars[0]?.id || null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // PDF Preview State
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // Form State for OCR
   const [formAmount, setFormAmount] = useState<string>('');
@@ -127,6 +133,15 @@ export const AdvancedMaintenanceJournal = ({
       setActiveCarId(cars[0].id);
     }
   }, [cars, activeCarId]);
+
+  useEffect(() => {
+    if (!(window as any).html2pdf) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   const activeCar = cars.find(c => c.id === activeCarId);
   
@@ -286,6 +301,45 @@ export const AdvancedMaintenanceJournal = ({
     }
   };
 
+  const handleGeneratePdf = async (shouldSendToTelegram = false) => {
+    if (!activeCar) return;
+    const h2p = (window as any).html2pdf;
+    if (!h2p) {
+      toast.error("Библиотека PDF еще загружается...");
+      return;
+    }
+
+    const element = document.getElementById('full-report-content');
+    if (!element) return;
+
+    setIsGeneratingPdf(true);
+    const opt = {
+      margin: 10,
+      filename: `AutoAI_Report_${activeCar.plate}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      if (shouldSendToTelegram) {
+        const worker = h2p().set(opt).from(element).toPdf().outputPdf('datauristring');
+        worker.then((dataUri: string) => {
+          onSendToTelegram?.(dataUri, `${activeCar.make} ${activeCar.model}`);
+          setIsGeneratingPdf(false);
+        });
+      } else {
+        await h2p().set(opt).from(element).save();
+        toast.success("Отчет сохранен на устройство");
+        setIsGeneratingPdf(false);
+      }
+    } catch (err) {
+      console.error("PDF Error:", err);
+      toast.error("Ошибка генерации PDF");
+      setIsGeneratingPdf(false);
+    }
+  };
+
   if (cars.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 text-center px-10">
@@ -340,7 +394,13 @@ export const AdvancedMaintenanceJournal = ({
               </h2>
               <p className="text-slate-400 font-medium text-sm mt-1">Всего записей в журнале: {carRecords.length}</p>
             </div>
-            <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              <button 
+                onClick={() => setShowPdfPreview(true)}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-sm"
+              >
+                <FileText size={14} /> Отчет PDF
+              </button>
               <button 
                 onClick={exportArchive}
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
@@ -662,6 +722,151 @@ export const AdvancedMaintenanceJournal = ({
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative z-10 max-w-2xl w-full">
               <button onClick={() => setIsPhotoViewOpen(false)} className="absolute -top-12 right-0 p-2 text-white hover:text-indigo-400 transition-colors"><X size={32} /></button>
               <img src={selectedReceipt} alt="Receipt" className="w-full h-auto rounded-3xl shadow-2xl border border-white/10" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* PDF Report Preview Modal */}
+      <AnimatePresence>
+        {showPdfPreview && activeCar && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPdfPreview(false)} className="absolute inset-0 bg-slate-900/80 backdrop-blur-lg" />
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }} className="bg-white rounded-[40px] w-full max-w-4xl p-0 shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden">
+              <div className="px-10 py-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
+                    <FileText size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Предпросмотр отчета</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Полная история обслуживания</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowPdfPreview(false)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-10 bg-slate-200/50">
+                {/* The actual element to be turned into PDF */}
+                <div id="full-report-content" className="bg-white p-12 shadow-xl mx-auto max-w-[210mm] min-h-[297mm] text-slate-900 font-sans">
+                  {/* Report Header */}
+                  <div className="flex justify-between items-start border-b-4 border-indigo-600 pb-8 mb-10">
+                    <div>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
+                          <TrendingUp size={24} />
+                        </div>
+                        <h1 className="text-3xl font-black tracking-tighter uppercase italic">AutoAI Report</h1>
+                      </div>
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-none">Smart Automotive Intelligence Systems</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Дата формирования</p>
+                      <p className="text-sm font-bold text-slate-900">{new Date().toLocaleDateString('ru-RU')}</p>
+                    </div>
+                  </div>
+
+                  {/* Car Identity */}
+                  <div className="grid grid-cols-2 gap-8 mb-10">
+                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                      <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-2">Автомобиль</p>
+                      <h2 className="text-2xl font-black text-slate-900">{activeCar.make} {activeCar.model}</h2>
+                      <p className="text-sm font-bold text-slate-500 mt-1">{activeCar.year} г.в. • {activeCar.transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
+                    </div>
+                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                      <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-2">Идентификация</p>
+                      <p className="text-lg font-black text-slate-900 uppercase tracking-tight">{activeCar.plate || 'БЕЗ НОМЕРА'}</p>
+                      <p className="text-xs font-bold text-slate-400 mt-1 font-mono break-all">{activeCar.vin || 'VIN ОТСУТСТВУЕТ'}</p>
+                    </div>
+                  </div>
+
+                  {/* Stats Summary */}
+                  <div className="grid grid-cols-4 gap-4 mb-10">
+                    <div className="text-center p-4 border border-slate-100 rounded-2xl bg-indigo-50/30">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Общие затраты</p>
+                      <p className="text-lg font-black text-indigo-600">{stats.total.toLocaleString()} ₽</p>
+                    </div>
+                    <div className="text-center p-4 border border-slate-100 rounded-2xl">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Записей</p>
+                      <p className="text-lg font-black text-slate-900">{carRecords.length}</p>
+                    </div>
+                    <div className="text-center p-4 border border-slate-100 rounded-2xl">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Пробег</p>
+                      <p className="text-lg font-black text-slate-900">{activeCar.mileage.toLocaleString()} км</p>
+                    </div>
+                    <div className="text-center p-4 border border-slate-100 rounded-2xl">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">ТО / Сервис</p>
+                      <p className="text-lg font-black text-emerald-600">{(stats.byType.service || 0).toLocaleString()} ₽</p>
+                    </div>
+                  </div>
+
+                  {/* Main History Table */}
+                  <div className="mb-12">
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <div className="w-1.5 h-4 bg-indigo-600 rounded-full" />
+                      Подробная история операций
+                    </h3>
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-900 text-white">
+                          <th className="p-4 text-[10px] font-black uppercase tracking-widest rounded-tl-xl">Дата</th>
+                          <th className="p-4 text-[10px] font-black uppercase tracking-widest">Категория</th>
+                          <th className="p-4 text-[10px] font-black uppercase tracking-widest">Описание выполненных работ</th>
+                          <th className="p-4 text-[10px] font-black uppercase tracking-widest text-right rounded-tr-xl">Сумма</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {carRecords.length > 0 ? carRecords.map((r, i) => (
+                          <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                            <td className="p-4 text-xs font-bold text-slate-500 whitespace-nowrap">{r.date}</td>
+                            <td className="p-4">
+                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${CATEGORIES[r.type].color} ${CATEGORIES[r.type].bgColor}`}>
+                                {CATEGORIES[r.type].label}
+                              </span>
+                            </td>
+                            <td className="p-4 text-xs font-bold text-slate-900 leading-relaxed">{r.description}</td>
+                            <td className="p-4 text-xs font-black text-slate-900 text-right whitespace-nowrap">{r.amount.toLocaleString()} ₽</td>
+                          </tr>
+                        )) : (
+                          <tr>
+                            <td colSpan={4} className="p-10 text-center text-slate-400 italic text-xs">Записи отсутствуют</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Report Footer */}
+                  <div className="mt-auto pt-10 border-t border-slate-100">
+                    <div className="flex justify-between items-center opacity-50">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Generated by AutoAI Core</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-400">ID: {activeCar.id} • {new Date().toLocaleTimeString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-10 py-8 bg-white border-t border-slate-100 flex gap-4">
+                <button 
+                  onClick={() => handleGeneratePdf(false)}
+                  disabled={isGeneratingPdf}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  <Download size={20} /> {isGeneratingPdf ? 'Генерация...' : 'Скачать на устройство'}
+                </button>
+                <button 
+                  onClick={() => handleGeneratePdf(true)}
+                  disabled={isGeneratingPdf}
+                  className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  <Send size={20} /> {isGeneratingPdf ? 'Подготовка...' : 'Отправить в Telegram бот'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
