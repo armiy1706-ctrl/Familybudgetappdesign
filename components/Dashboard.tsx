@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Heart, 
@@ -17,29 +17,153 @@ import {
   Copy,
   Sparkles,
   Camera,
-  Clock
+  Clock,
+  Columns,
+  Download,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { CameraCapture } from './CameraCapture';
 
-interface ServiceFormData {
-  date: string;
-  odometer: number;
-  interval: number;
-}
+// --- Comparison Modal ---
+const ComparisonModal = ({ isOpen, onClose, records }: { isOpen: boolean, onClose: () => void, records: any[] }) => {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [comparisonMode, setComparisonMode] = useState(false);
 
-interface FuelFormData {
-  odometer: number;
-  liters: number;
-}
+  const toggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    } else if (selectedIds.length < 2) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      toast.error('Выберите только 2 изображения для сравнения');
+    }
+  };
 
-interface BatteryFormData {
-  age: number;
-  climate: 'moderate' | 'cold' | 'very_cold' | 'hot';
-  engine: 'petrol' | 'diesel';
-  trips: 'short' | 'daily' | 'long' | 'rare';
-}
+  const generatePDFReport = async () => {
+    toast.info("Генерация отчета...");
+    // Dynamic import to keep bundle small and fix build issues if any
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    script.onload = () => {
+      const element = document.getElementById('report-content');
+      if (!element) return;
+      
+      const opt = {
+        margin: 10,
+        filename: `AutoAI_Report_${new Date().toLocaleDateString()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      (window as any).html2pdf().set(opt).from(element).save();
+      toast.success("Отчет скачан!");
+    };
+    document.body.appendChild(script);
+  };
+
+  const selectedRecords = records.filter(r => selectedIds.includes(r.id)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" />
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[32px] w-full max-w-4xl p-8 shadow-2xl relative z-10 overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900">Инструмент сравнения</h3>
+                <p className="text-slate-500 text-xs font-medium">Выберите 2 анализа для визуального сопоставления</p>
+              </div>
+              <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+            </div>
+
+            {!comparisonMode ? (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {records.map(record => (
+                    <div 
+                      key={record.id} 
+                      onClick={() => toggleSelect(record.id)}
+                      className={`relative aspect-square rounded-2xl overflow-hidden cursor-pointer border-4 transition-all ${selectedIds.includes(record.id) ? 'border-indigo-600 scale-95 shadow-lg' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                    >
+                      <img src={record.receiptImage} className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 border-white ${selectedIds.includes(record.id) ? 'bg-indigo-600 text-white' : 'bg-black/20 text-transparent'}`}>
+                          <ShieldCheck size={14} />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 inset-x-0 p-2 bg-black/40 text-white text-[10px] font-bold">
+                        {record.date}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  disabled={selectedIds.length !== 2}
+                  onClick={() => setComparisonMode(true)}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest disabled:opacity-30 transition-all shadow-xl shadow-indigo-100"
+                >
+                  Сравнить выбранные
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                <div id="report-content" className="p-4 bg-white rounded-xl">
+                  <div className="flex items-center gap-3 mb-6 border-b pb-4">
+                    <Activity size={32} className="text-indigo-600" />
+                    <div>
+                      <h2 className="text-xl font-black text-slate-900 uppercase">AutoAI Vision Report</h2>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Сравнительный анализ неисправностей</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-8">
+                    {selectedRecords.map((r, i) => (
+                      <div key={r.id} className="space-y-4">
+                        <div className="bg-slate-50 px-3 py-1.5 rounded-full inline-block">
+                          <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{i === 0 ? 'ДО' : 'ПОСЛЕ'} — {r.date}</span>
+                        </div>
+                        <div className="aspect-[4/3] rounded-2xl overflow-hidden border border-slate-200">
+                          <img src={r.receiptImage} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                          <h4 className="font-bold text-slate-900 text-sm mb-1">{r.description}</h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">{r.details?.substring(0, 150)}...</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 pt-8 border-t border-slate-100">
+                    <p className="text-[10px] text-slate-400 text-center italic">Отчет сформирован ИИ-системой AutoAI. Не является официальным заключением дилерского центра.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setComparisonMode(false)}
+                    className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm uppercase"
+                  >
+                    Назад к выбору
+                  </button>
+                  <button 
+                    onClick={generatePDFReport}
+                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 shadow-xl shadow-indigo-100"
+                  >
+                    <Download size={20} /> Скачать PDF отчет
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar, onOpenCamera }: { 
   onNavigate: (tab: string) => void, 
@@ -54,6 +178,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   const [showOdometerModal, setShowOdometerModal] = useState(false);
   const [showFuelModal, setShowFuelModal] = useState(false);
   const [showBatteryModal, setShowBatteryModal] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
   
   const currentOdometer = Number(dashboardData?.currentOdometer) || (Number(activeCar?.mileage) || 0);
   const oilStatus = dashboardData?.oilStatus;
@@ -61,6 +186,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
   const fuelConsumption = dashboardData?.fuelConsumption || 0;
   const batteryResult = dashboardData?.batteryResult;
   
+  const visionRecords = activeCar?.serviceHistory?.filter((r: any) => r.type === 'Диагностика ИИ' && r.receiptImage) || [];
   const oilForm = useForm<ServiceFormData>({
     defaultValues: {
       date: oilStatus?.lastDate || new Date().toISOString().split('T')[0],
@@ -375,23 +501,32 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
       </div>
 
       {/* Vision Gallery Section */}
-      {activeCar?.serviceHistory?.some((r: any) => r.type === 'Диагностика ИИ' && r.receiptImage) && (
+      {visionRecords.length > 0 && (
         <div className="space-y-4">
           <div className="flex justify-between items-center px-2">
             <div className="flex items-center gap-2">
               <Camera size={18} className="text-indigo-600" />
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">История Vision-анализов</h3>
             </div>
-            <button 
-              onClick={() => onNavigate('diagnostics')}
-              className="text-[10px] font-bold text-indigo-600 uppercase hover:underline"
-            >
-              Смотреть все
-            </button>
+            <div className="flex gap-4">
+              {visionRecords.length >= 2 && (
+                <button 
+                  onClick={() => setShowComparison(true)}
+                  className="text-[10px] font-black text-indigo-600 uppercase flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition-colors"
+                >
+                  <Columns size={12} /> Сравнить ДО/ПОСЛЕ
+                </button>
+              )}
+              <button 
+                onClick={() => onNavigate('diagnostics')}
+                className="text-[10px] font-bold text-slate-400 uppercase hover:text-indigo-600 transition-colors"
+              >
+                Все анализы
+              </button>
+            </div>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-            {activeCar.serviceHistory
-              .filter((r: any) => r.type === 'Диагностика ИИ' && r.receiptImage)
+            {visionRecords
               .slice(0, 5)
               .map((record: any, idx: number) => (
                 <motion.div 
@@ -416,6 +551,12 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           </div>
         </div>
       )}
+
+      <ComparisonModal 
+        isOpen={showComparison} 
+        onClose={() => setShowComparison(false)} 
+        records={visionRecords} 
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
