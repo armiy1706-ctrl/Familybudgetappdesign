@@ -342,7 +342,7 @@ export default function App() {
                   <p className="text-slate-400 text-xs font-medium">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
                 </div>
                 {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCar?.dashboardData} setDashboardData={updateDashboardData} onDeleteCar={deleteCar} />}
-                {activeTab === 'maintenance' && <MaintenanceLog activeCar={activeCar} dashboardData={activeCar?.dashboardData} setDashboardData={updateDashboardData} />}
+                {activeTab === 'maintenance' && <AdvancedMaintenanceJournal />}
                 {activeTab === 'diagnostics' && <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />}
                 {activeTab === 'obd' && <OBDScanner />}
                 {activeTab === 'knowledge' && <KnowledgeBase />}
