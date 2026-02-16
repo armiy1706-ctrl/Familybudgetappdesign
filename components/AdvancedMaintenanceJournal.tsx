@@ -392,15 +392,15 @@ export const AdvancedMaintenanceJournal = ({
                   </div>
                 </div>
               ))}
-              <button 
-                onClick={() => toast.info("Функция добавления машины в разработке")}
-                className="bg-white rounded-[40px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-10 group hover:border-indigo-400 transition-all cursor-pointer"
-              >
-                <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all mb-4">
-                  <PlusIcon size={32} />
+              {cars.length === 0 && (
+                <div className="col-span-full py-20 bg-white rounded-[40px] border border-dashed border-slate-200 flex flex-col items-center justify-center text-center px-10">
+                  <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center text-slate-300 mb-6">
+                    <CarIcon size={40} />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">Ваш парк пуст</h3>
+                  <p className="text-sm text-slate-400 font-medium max-w-sm">Добавьте свой первый автомобиль в разделе «Мой гараж», чтобы начать вести детальный журнал обслуживания и следить за расходами.</p>
                 </div>
-                <p className="font-black text-slate-900 uppercase text-xs tracking-widest">Добавить автомобиль</p>
-              </button>
+              )}
             </div>
           )}
 
