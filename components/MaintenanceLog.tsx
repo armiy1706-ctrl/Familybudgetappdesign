@@ -10,7 +10,9 @@ import {
   ShieldCheck,
   AlertTriangle,
   Activity,
-  Plus
+  Plus,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -32,6 +34,8 @@ export const MaintenanceLog = ({ activeCar, dashboardData, setDashboardData }: {
   setDashboardData: (data: any) => void
 }) => {
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   
   const currentOdometer = Number(dashboardData?.currentOdometer) || (Number(activeCar?.mileage) || 0);
   const maintenanceRecords: MaintenanceRecord[] = dashboardData?.maintenanceRecords || [];
@@ -48,25 +52,75 @@ export const MaintenanceLog = ({ activeCar, dashboardData, setDashboardData }: {
     }
   });
 
+  const handleOpenAdd = () => {
+    setEditingRecord(null);
+    maintenanceForm.reset({
+      date: new Date().toISOString().split('T')[0],
+      mileage: currentOdometer,
+      intervalKm: 10000,
+      intervalMonths: 12,
+      description: '',
+      price: 0,
+      comment: ''
+    });
+    setShowMaintenanceModal(true);
+  };
+
+  const handleEditRecord = (record: MaintenanceRecord) => {
+    setEditingRecord(record);
+    maintenanceForm.reset({
+      date: record.date,
+      mileage: record.mileage,
+      intervalKm: record.intervalKm,
+      intervalMonths: record.intervalMonths,
+      description: record.description,
+      price: record.price,
+      comment: record.comment
+    });
+    setShowMaintenanceModal(true);
+  };
+
+  const handleDeleteRecord = (id: string) => {
+    if (confirm('Удалить эту запись?')) {
+      const updatedRecords = maintenanceRecords.filter(r => r.id !== id);
+      setDashboardData({
+        ...dashboardData,
+        maintenanceRecords: updatedRecords
+      });
+      toast.success('Запись удалена');
+    }
+  };
+
   const onMaintenanceSubmit = (data: Omit<MaintenanceRecord, 'id'>) => {
-    const newRecord: MaintenanceRecord = {
-      ...data,
-      id: Date.now().toString(),
-      mileage: Number(data.mileage),
-      intervalKm: Number(data.intervalKm),
-      intervalMonths: Number(data.intervalMonths),
-      price: Number(data.price)
-    };
+    let updatedRecords;
     
-    const updatedRecords = [newRecord, ...maintenanceRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (editingRecord) {
+      updatedRecords = maintenanceRecords.map(r => 
+        r.id === editingRecord.id ? { ...data, id: r.id } : r
+      );
+      toast.success('Запись обновлена!');
+    } else {
+      const newRecord: MaintenanceRecord = {
+        ...data,
+        id: Date.now().toString(),
+        mileage: Number(data.mileage),
+        intervalKm: Number(data.intervalKm),
+        intervalMonths: Number(data.intervalMonths),
+        price: Number(data.price)
+      };
+      updatedRecords = [newRecord, ...maintenanceRecords];
+      toast.success('Запись о ТО добавлена!');
+    }
+    
+    updatedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     setDashboardData({
       ...dashboardData,
       maintenanceRecords: updatedRecords
     });
     
-    toast.success('Запись о ТО добавлена!');
     setShowMaintenanceModal(false);
+    setEditingRecord(null);
     maintenanceForm.reset();
   };
 
@@ -117,17 +171,26 @@ export const MaintenanceLog = ({ activeCar, dashboardData, setDashboardData }: {
 
   return (
     <div className="space-y-6 pb-20 lg:pb-0">
-      <div className="flex justify-between items-center gap-2">
+      <div className="flex justify-between items-start gap-2">
         <div className="px-3 py-1 border-2 border-indigo-600 rounded-lg">
           <h3 className="text-base font-black text-indigo-600 uppercase tracking-tighter">Журнал ТО</h3>
         </div>
-        <button 
-          onClick={() => setShowMaintenanceModal(true)}
-          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-[10px] uppercase tracking-tighter hover:bg-indigo-700 transition-all flex items-center gap-1.5 shadow-md shadow-indigo-100 shrink-0"
-        >
-          <Plus size={12} />
-          Добавить
-        </button>
+        <div className="flex flex-col gap-1.5 items-end">
+          <button 
+            onClick={handleOpenAdd}
+            className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-[10px] uppercase tracking-tighter hover:bg-indigo-700 transition-all flex items-center gap-1.5 shadow-md shadow-indigo-100 shrink-0 w-full justify-center"
+          >
+            <Plus size={12} />
+            Добавить
+          </button>
+          <button 
+            onClick={() => setIsEditMode(!isEditMode)}
+            className={`px-3 py-1.5 ${isEditMode ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'} rounded-lg font-bold text-[10px] uppercase tracking-tighter hover:opacity-80 transition-all flex items-center gap-1.5 shrink-0 w-full justify-center`}
+          >
+            <Edit2 size={12} />
+            {isEditMode ? 'Готово' : 'Редактировать'}
+          </button>
+        </div>
       </div>
 
       {nextTO ? (
@@ -201,46 +264,60 @@ export const MaintenanceLog = ({ activeCar, dashboardData, setDashboardData }: {
 
       {/* История ТО */}
       <div className="space-y-4">
-        <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest px-2">История обслуживания</h4>
+        <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest px-2">История обслуживания</h4>
         
         {maintenanceRecords.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {maintenanceRecords.map((record) => (
               <motion.div 
                 layout
                 key={record.id} 
-                className="bg-white rounded-[32px] border border-slate-100 p-6 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all group"
+                className={`bg-white rounded-[24px] border ${isEditMode ? 'border-amber-200 bg-amber-50/10' : 'border-slate-100'} p-4 shadow-sm hover:shadow-md transition-all group relative overflow-hidden`}
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 rounded-2xl flex items-center justify-center transition-colors">
-                      <Wrench size={20} />
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 rounded-xl flex items-center justify-center transition-colors shrink-0">
+                      <Wrench size={16} />
                     </div>
                     <div>
-                      <p className="font-black text-slate-900">{record.description || 'Плановое обслуживание'}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                        <Calendar size={10} />
+                      <p className="text-sm font-black text-slate-900 leading-tight truncate max-w-[150px]">{record.description || 'ТО'}</p>
+                      <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                        <Calendar size={9} />
                         {new Date(record.date).toLocaleDateString()}
                         <span className="opacity-30">•</span>
-                        <Gauge size={10} />
-                        {record.mileage.toLocaleString()} км
+                        <Gauge size={9} />
+                        {record.mileage.toLocaleString()}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-black text-indigo-600 text-lg leading-none">{record.price.toLocaleString()} ₽</p>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Итого</p>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="font-black text-indigo-600 text-sm leading-none">{record.price.toLocaleString()} ₽</p>
+                    </div>
+                    {isEditMode && (
+                      <div className="flex items-center gap-1 ml-1 border-l pl-2 border-slate-100">
+                        <button 
+                          onClick={() => handleEditRecord(record)}
+                          className="p-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteRecord(record.id)}
+                          className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-                {record.comment && (
-                  <div className="pl-16">
-                    <div className="bg-slate-50/50 rounded-2xl p-4">
-                      <p className="text-xs text-slate-500 leading-relaxed font-medium italic">
-                        <span className="text-indigo-300 mr-1 opacity-50 font-black text-lg leading-none">“</span>
-                        {record.comment}
-                        <span className="text-indigo-300 ml-1 opacity-50 font-black text-lg leading-none">”</span>
-                      </p>
-                    </div>
+                {record.comment && !isEditMode && (
+                  <div className="mt-3 pl-13">
+                    <p className="text-[10px] text-slate-500 leading-snug font-medium italic line-clamp-2">
+                      {record.comment}
+                    </p>
                   </div>
                 )}
               </motion.div>
@@ -261,9 +338,15 @@ export const MaintenanceLog = ({ activeCar, dashboardData, setDashboardData }: {
               <button onClick={() => setShowMaintenanceModal(false)} className="absolute top-8 right-8 p-2 text-slate-300 hover:text-slate-600 transition-colors"><X size={24} /></button>
               
               <div className="mb-8">
-                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm"><Sparkles size={28} /></div>
-                <h3 className="text-2xl font-black text-slate-900">Новое обслуживание</h3>
-                <p className="text-slate-500 text-sm mt-1 font-medium">Введите детали проведенных работ</p>
+                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
+                  {editingRecord ? <Edit2 size={28} /> : <Sparkles size={28} />}
+                </div>
+                <h3 className="text-2xl font-black text-slate-900">
+                  {editingRecord ? 'Редактировать ТО' : 'Новое обслуживание'}
+                </h3>
+                <p className="text-slate-500 text-sm mt-1 font-medium">
+                  {editingRecord ? 'Измените детали записи' : 'Введите детали проведенных работ'}
+                </p>
               </div>
 
               <form onSubmit={maintenanceForm.handleSubmit(onMaintenanceSubmit)} className="space-y-6">
@@ -305,7 +388,7 @@ export const MaintenanceLog = ({ activeCar, dashboardData, setDashboardData }: {
                 </div>
 
                 <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-sm uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-[0.98] mt-4">
-                  Сохранить запись
+                  {editingRecord ? 'Сохранить изменения' : 'Добавить запись'}
                 </button>
               </form>
             </motion.div>
