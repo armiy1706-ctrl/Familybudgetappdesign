@@ -179,6 +179,21 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  // Global helper for components to add records
+  useEffect(() => {
+    (window as any).addServiceRecord = (carId: string, record: any) => {
+      setCars(prev => {
+        return prev.map(car => {
+          if (car.id === carId) {
+            const history = car.serviceHistory || [];
+            return { ...car, serviceHistory: [record, ...history] };
+          }
+          return car;
+        });
+      });
+    };
+  }, []);
+
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-web-app.js';
