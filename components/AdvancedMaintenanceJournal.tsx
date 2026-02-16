@@ -81,7 +81,7 @@ export const AdvancedMaintenanceJournal = ({
   onDeleteCar?: (id: string) => void,
   onSendToTelegram?: (base64: string, carName: string) => void
 }) => {
-  const [activeCarId, setActiveCarId] = useState<string | null>(cars[0]?.id || null);
+  const [activeCarId, setActiveCarId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -129,7 +129,9 @@ export const AdvancedMaintenanceJournal = ({
 
   // Ensure active car is valid
   useEffect(() => {
-    if (cars.length > 0 && (!activeCarId || !cars.find(c => c.id === activeCarId))) {
+    if (cars.length > 0 && !activeCarId) {
+      setActiveCarId(cars[0].id);
+    } else if (cars.length > 0 && activeCarId && !cars.find(c => c.id === activeCarId)) {
       setActiveCarId(cars[0].id);
     }
   }, [cars, activeCarId]);
@@ -143,18 +145,20 @@ export const AdvancedMaintenanceJournal = ({
     }
   }, []);
 
-  const activeCar = cars.find(c => c.id === activeCarId);
+  const activeCar = useMemo(() => cars.find(c => c.id === activeCarId), [cars, activeCarId]);
   
   // Filter records for active car
-  const carRecords = useMemo(() => 
-    records.filter(r => r.carId === activeCarId && 
+  const carRecords = useMemo(() => {
+    if (!activeCarId) return [];
+    return records.filter(r => r.carId === activeCarId && 
       (r.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
        CATEGORIES[r.type].label.toLowerCase().includes(searchTerm.toLowerCase()))
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  , [records, activeCarId, searchTerm]);
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [records, activeCarId, searchTerm]);
 
   // Stats
   const stats = useMemo(() => {
+    if (!activeCarId) return { total: 0, byType: {} };
     const carRecs = records.filter(r => r.carId === activeCarId);
     const total = carRecs.reduce((sum, r) => sum + r.amount, 0);
     const byType = carRecs.reduce((acc, r) => {
@@ -363,18 +367,18 @@ export const AdvancedMaintenanceJournal = ({
       {/* Car Tabs - Fleet Management style */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {cars.map(car => (
-          <button
-            key={car.id}
-            onClick={() => setActiveCarId(car.id)}
-            className={`flex items-center gap-3 px-6 py-4 rounded-[24px] font-bold transition-all shrink-0 border-2 ${
-              activeCarId === car.id 
-              ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
-              : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-            }`}
-          >
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeTab === 'maintenance' && activeCarId === car.id ? 'bg-white/20' : 'bg-slate-50 text-slate-400'}`}>
-              <CarIcon size={16} />
-            </div>
+            <button
+              key={car.id}
+              onClick={() => setActiveCarId(car.id)}
+              className={`flex items-center gap-3 px-6 py-4 rounded-[24px] font-bold transition-all shrink-0 border-2 ${
+                activeCarId === car.id 
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
+                : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeCarId === car.id ? 'bg-white/20' : 'bg-slate-50 text-slate-400'}`}>
+                <CarIcon size={16} />
+              </div>
             <div className="text-left">
               <p className="text-[10px] uppercase font-black tracking-widest leading-none opacity-60 mb-0.5">{car.make}</p>
               <p className="text-sm tracking-tight leading-none truncate max-w-[120px]">{car.model}</p>
