@@ -192,7 +192,6 @@ app.post('/ocr-receipt', async (c) => {
     const content = await callOpenAI(systemPrompt, "Просканируй этот чек.", image);
     
     try {
-      // Clean content from markdown blocks if any
       const jsonStr = content.replace(/```json|```/g, '').trim();
       const result = JSON.parse(jsonStr);
       return c.json(result);
@@ -202,7 +201,11 @@ app.post('/ocr-receipt', async (c) => {
     }
   } catch (error) {
     console.error("OCR Route Error:", error);
-    return c.json({ error: error.message }, 500);
+    return c.json({ 
+      error: "Ошибка сканирования чека", 
+      details: error.message,
+      isQuotaError: error.message.includes("Quota Exceeded")
+    }, 500);
   }
 })
 
