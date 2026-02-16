@@ -23,7 +23,9 @@ import {
   Search,
   Camera,
   Eye,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Loader2,
+  Archive
 } from 'lucide-react';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, 
@@ -31,6 +33,8 @@ import {
 } from 'recharts';
 import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
+import { projectId, publicAnonKey } from '../utils/supabase/info';
+import JSZip from 'jszip';
 
 // --- Interfaces ---
 
@@ -81,6 +85,11 @@ export const AdvancedMaintenanceJournal = ({
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Form State for OCR
+  const [formAmount, setFormAmount] = useState<string>('');
+  const [formDate, setFormDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
+
   // Camera & Receipt state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [tempReceiptImage, setTempReceiptImage] = useState<string | null>(null);
@@ -166,10 +175,38 @@ export const AdvancedMaintenanceJournal = ({
     toast.success('Запись удалена');
   };
 
-  const handleCameraCapture = (imageData: string) => {
+  const handleCameraCapture = async (imageData: string) => {
     setTempReceiptImage(imageData);
     setIsCameraOpen(false);
-    toast.success("Чек прикреплен к записи");
+    
+    // Trigger OCR
+    setIsOcrLoading(true);
+    toast.info("Запускаю ИИ-сканирование чека...");
+    
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/ocr-receipt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ image: imageData })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.amount) setFormAmount(data.amount.toString());
+        if (data.date) setFormDate(data.date);
+        toast.success("Данные чека успешно распознаны!");
+      } else {
+        toast.error("Не удалось распознать данные автоматически");
+      }
+    } catch (err) {
+      console.error("OCR Error:", err);
+      toast.error("Ошибка при связи с сервером распознавания");
+    } finally {
+      setIsOcrLoading(false);
+    }
   };
 
   const openReceiptView = (image: string) => {
@@ -177,25 +214,52 @@ export const AdvancedMaintenanceJournal = ({
     setIsPhotoViewOpen(true);
   };
 
-  const exportToCSV = () => {
+  const exportArchive = async () => {
     if (!activeCar) return;
-    const headers = ['Дата', 'Тип', 'Описание', 'Сумма (₽)'];
-    const rows = carRecords.map(r => [
-      r.date,
-      CATEGORIES[r.type].label,
-      r.description,
-      r.amount
-    ]);
+    toast.info("Подготовка архива...");
     
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `ТО_${activeCar.make}_${activeCar.model}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Отчет успешно экспортирован");
+    try {
+      const zip = new JSZip();
+      
+      // CSV Content
+      const headers = ['Дата', 'Тип', 'Описание', 'Сумма (₽)', 'Файл чека'];
+      const rows = carRecords.map(r => [
+        r.date,
+        CATEGORIES[r.type].label,
+        r.description,
+        r.amount,
+        r.receiptImage ? `receipt_${r.id}.png` : '-'
+      ]);
+      
+      const csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
+      zip.file(`ТО_${activeCar.make}_${activeCar.model}.csv`, csvContent);
+      
+      // Images folder
+      const imgFolder = zip.folder("receipts");
+      if (imgFolder) {
+        for (const record of carRecords) {
+          if (record.receiptImage) {
+            const base64Data = record.receiptImage.split(',')[1];
+            imgFolder.file(`receipt_${record.id}.png`, base64Data, { base64: true });
+          }
+        }
+      }
+      
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(content);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `AutoAI_Export_${activeCar.plate}_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Архив успешно создан и скачан");
+    } catch (err) {
+      console.error("Export Error:", err);
+      toast.error("Ошибка при создании архива");
+    }
   };
 
   if (cars.length === 0) {
@@ -254,13 +318,17 @@ export const AdvancedMaintenanceJournal = ({
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto">
               <button 
-                onClick={exportToCSV}
+                onClick={exportArchive}
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
               >
-                <Download size={14} /> Экспорт
+                <Archive size={14} /> Экспорт ZIP
               </button>
               <button 
-                onClick={() => setShowAddModal(true)}
+                onClick={() => {
+                  setFormAmount('');
+                  setFormDate(new Date().toISOString().split('T')[0]);
+                  setShowAddModal(true);
+                }}
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
               >
                 <Plus size={16} /> Новая запись
@@ -496,13 +564,17 @@ export const AdvancedMaintenanceJournal = ({
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Дата</label>
-                    <input 
-                      name="date" 
-                      type="date" 
-                      required
-                      defaultValue={new Date().toISOString().split('T')[0]}
-                      className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
-                    />
+                    <div className="relative">
+                      <input 
+                        name="date" 
+                        type="date" 
+                        required
+                        value={formDate}
+                        onChange={(e) => setFormDate(e.target.value)}
+                        className={`w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all ${isOcrLoading ? 'opacity-50' : ''}`}
+                      />
+                      {isOcrLoading && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" size={20} /></div>}
+                    </div>
                   </div>
                 </div>
 
@@ -525,9 +597,13 @@ export const AdvancedMaintenanceJournal = ({
                       name="amount" 
                       type="number" 
                       required
-                      placeholder="0"
-                      className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={formAmount}
+                      onChange={(e) => setFormAmount(e.target.value)}
+                      className={`w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all ${isOcrLoading ? 'opacity-50' : ''}`}
                     />
+                    {isOcrLoading && <div className="absolute right-6 top-1/2 -translate-y-1/2"><Loader2 className="animate-spin text-indigo-600" size={16} /></div>}
                   </div>
                 </div>
 
