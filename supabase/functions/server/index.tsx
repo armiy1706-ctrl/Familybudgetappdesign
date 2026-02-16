@@ -179,4 +179,31 @@ app.post('/demo-auth', async (c) => {
   }
 })
 
+app.post('/ocr-receipt', async (c) => {
+  try {
+    const { image } = await c.req.json();
+    if (!image) return c.json({ error: 'No image provided' }, 400);
+
+    const systemPrompt = `Ты — специалист по распознаванию чеков. Проанализируй изображение чека и извлеки общую сумму (Total) и дату.
+    Если дата не найдена, используй текущую: ${new Date().toISOString().split('T')[0]}.
+    Ответ выдай СТРОГО в формате JSON: {"amount": 1234.50, "date": "YYYY-MM-DD"}.
+    Только JSON, без лишнего текста.`;
+
+    const content = await callOpenAI(systemPrompt, "Просканируй этот чек.", image);
+    
+    try {
+      // Clean content from markdown blocks if any
+      const jsonStr = content.replace(/```json|```/g, '').trim();
+      const result = JSON.parse(jsonStr);
+      return c.json(result);
+    } catch (parseError) {
+      console.error("OCR JSON Parse Error:", parseError, content);
+      return c.json({ error: "Failed to parse OCR results" }, 500);
+    }
+  } catch (error) {
+    console.error("OCR Route Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+})
+
 Deno.serve(app.fetch)
