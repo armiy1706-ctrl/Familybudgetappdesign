@@ -20,13 +20,17 @@ import {
   PlusCircle,
   FileText,
   PieChart as PieIcon,
-  Search
+  Search,
+  Camera,
+  Eye,
+  Image as ImageIcon
 } from 'lucide-react';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 import { toast } from 'sonner';
+import { CameraCapture } from './CameraCapture';
 
 // --- Interfaces ---
 
@@ -39,6 +43,7 @@ interface MaintenanceRecord {
   date: string;
   description: string;
   amount: number;
+  receiptImage?: string;
 }
 
 const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; bgColor: string }> = {
@@ -75,6 +80,12 @@ export const AdvancedMaintenanceJournal = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Camera & Receipt state
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [tempReceiptImage, setTempReceiptImage] = useState<string | null>(null);
+  const [isPhotoViewOpen, setIsPhotoViewOpen] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
 
   // Persistence
   useEffect(() => {
@@ -139,17 +150,31 @@ export const AdvancedMaintenanceJournal = ({
       type: formData.get('type') as RecordType,
       date: formData.get('date') as string,
       description: formData.get('description') as string,
-      amount: Number(formData.get('amount'))
+      amount: Number(formData.get('amount')),
+      receiptImage: tempReceiptImage || undefined
     };
 
     setRecords(prev => [...prev, newRecord]);
     setShowAddModal(false);
+    setTempReceiptImage(null);
     toast.success('Запись успешно сохранена');
   };
 
   const deleteRecord = (id: string) => {
+    if (!window.confirm("Удалить эту запись?")) return;
     setRecords(prev => prev.filter(r => r.id !== id));
     toast.success('Запись удалена');
+  };
+
+  const handleCameraCapture = (imageData: string) => {
+    setTempReceiptImage(imageData);
+    setIsCameraOpen(false);
+    toast.success("Чек прикреплен к записи");
+  };
+
+  const openReceiptView = (image: string) => {
+    setSelectedReceipt(image);
+    setIsPhotoViewOpen(true);
   };
 
   const exportToCSV = () => {
@@ -187,6 +212,12 @@ export const AdvancedMaintenanceJournal = ({
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-24">
+      <CameraCapture 
+        isOpen={isCameraOpen} 
+        onClose={() => setIsCameraOpen(false)} 
+        onCapture={handleCameraCapture} 
+      />
+
       {/* Car Tabs - Fleet Management style */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {cars.map(car => (
@@ -376,7 +407,17 @@ export const AdvancedMaintenanceJournal = ({
                                 </div>
                                 <div>
                                   <p className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight leading-tight">{record.description}</p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{cat.label}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{cat.label}</p>
+                                    {record.receiptImage && (
+                                      <button 
+                                        onClick={() => openReceiptView(record.receiptImage!)}
+                                        className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded transition-all"
+                                      >
+                                        <ImageIcon size={10} /> Чек
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -422,7 +463,7 @@ export const AdvancedMaintenanceJournal = ({
               initial={{ scale: 0.9, opacity: 0, y: 20 }} 
               animate={{ scale: 1, opacity: 1, y: 0 }} 
               exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-              className="bg-white rounded-[40px] w-full max-w-lg p-10 shadow-2xl relative z-10"
+              className="bg-white rounded-[40px] w-full max-w-lg p-10 shadow-2xl relative z-10 overflow-y-auto max-h-[90vh]"
             >
               <div className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
@@ -490,6 +531,38 @@ export const AdvancedMaintenanceJournal = ({
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Фото чека (необязательно)</label>
+                  <div className="flex items-center gap-4">
+                    {tempReceiptImage ? (
+                      <div className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-indigo-100 shrink-0">
+                        <img src={tempReceiptImage} alt="Receipt preview" className="w-full h-full object-cover" />
+                        <button 
+                          type="button"
+                          onClick={() => setTempReceiptImage(null)}
+                          className="absolute top-1 right-1 p-1 bg-rose-500 text-white rounded-lg shadow-lg"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        type="button"
+                        onClick={() => setIsCameraOpen(true)}
+                        className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-100 bg-slate-50 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50 transition-all group shrink-0"
+                      >
+                        <Camera size={24} />
+                        <span className="text-[8px] font-black uppercase tracking-widest">Снять чек</span>
+                      </button>
+                    )}
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      {tempReceiptImage 
+                        ? "Чек успешно зафиксирован и будет сохранен вместе с записью." 
+                        : "Вы можете сфотографировать бумажный чек или квитанцию для хранения в архиве."}
+                    </div>
+                  </div>
+                </div>
+
                 <button 
                   type="submit"
                   className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 mt-4 active:scale-[0.98]"
@@ -497,6 +570,39 @@ export const AdvancedMaintenanceJournal = ({
                   Сохранить запись
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Photo View Modal */}
+      <AnimatePresence>
+        {isPhotoViewOpen && selectedReceipt && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsPhotoViewOpen(false)} className="absolute inset-0 bg-slate-900/90 backdrop-blur-xl" />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.9, opacity: 0 }} 
+              className="relative z-10 max-w-4xl w-full flex flex-col items-center"
+            >
+              <button 
+                onClick={() => setIsPhotoViewOpen(false)} 
+                className="absolute -top-16 right-0 p-4 bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"
+              >
+                <X size={32} />
+              </button>
+              <img 
+                src={selectedReceipt} 
+                alt="Full receipt" 
+                className="w-full h-auto max-h-[80vh] object-contain rounded-3xl shadow-2xl border border-white/10" 
+              />
+              <div className="mt-6 flex items-center gap-3">
+                <div className="px-6 py-3 bg-white/10 backdrop-blur-md rounded-2xl flex items-center gap-2 text-white border border-white/10">
+                  <ImageIcon size={18} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Цифровая копия чека</span>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
