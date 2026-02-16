@@ -132,6 +132,18 @@ export const AdvancedMaintenanceJournal = ({
     localStorage.setItem('autoai_maintenance_entries', JSON.stringify(entries));
   }, [entries]);
 
+  // Cleanup: Remove entries for cars that no longer exist
+  useEffect(() => {
+    if (entries.length > 0) {
+      const existingCarIds = new Set(cars.map(c => c.id));
+      const filteredEntries = entries.filter(entry => existingCarIds.has(entry.carId));
+      
+      if (filteredEntries.length !== entries.length) {
+        setEntries(filteredEntries);
+      }
+    }
+  }, [cars]);
+
   // Form States
   const [newEntry, setNewEntry] = useState<Partial<MaintenanceEntry>>({
     carId: cars[0]?.id || '',
