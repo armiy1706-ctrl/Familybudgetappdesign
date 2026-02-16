@@ -24,6 +24,7 @@ import { OBDScanner } from './components/OBDScanner';
 import { KnowledgeBase } from './components/KnowledgeBase';
 import { Profile } from './components/Profile';
 import { Auth } from './components/Auth';
+import { CameraCapture } from './components/CameraCapture';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { ImageWithFallback } from './components/figma/ImageWithFallback';
@@ -258,10 +259,22 @@ export default function App() {
     { id: 'profile', label: 'Профиль', icon: User },
   ];
 
-  const activeCar = cars[activeCarIndex] || null;
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+
+  const handleCameraCapture = (imageData: string) => {
+    setPendingImage(imageData);
+    setActiveTab('diagnostics');
+    toast.success("Фото получено! Анализирую...");
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden relative">
+      <CameraCapture 
+        isOpen={isCameraOpen} 
+        onClose={() => setIsCameraOpen(false)} 
+        onCapture={handleCameraCapture} 
+      />
       <div className="absolute inset-0 z-0 flex items-center justify-center opacity-[0.03] pointer-events-none overflow-hidden">
         <ImageWithFallback 
           src="https://images.unsplash.com/photo-1688748807457-d8926e351596?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
@@ -341,7 +354,16 @@ export default function App() {
                   <h1 className="text-sm font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">{navItems.find(i => i.id === activeTab)?.label}</h1>
                   <p className="text-slate-400 text-xs font-medium">AutoAI v{BUILD_VERSION} • Профессиональная диагностика и мониторинг</p>
                 </div>
-                {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} activeCar={activeCar} dashboardData={activeCar?.dashboardData} setDashboardData={updateDashboardData} onDeleteCar={deleteCar} />}
+                {activeTab === 'dashboard' && (
+                  <Dashboard 
+                    onNavigate={setActiveTab} 
+                    activeCar={activeCar} 
+                    dashboardData={activeCar?.dashboardData} 
+                    setDashboardData={updateDashboardData} 
+                    onDeleteCar={deleteCar} 
+                    onOpenCamera={() => setIsCameraOpen(true)}
+                  />
+                )}
                 {activeTab === 'maintenance' && (
                   <AdvancedMaintenanceJournal 
                     cars={cars} 
@@ -349,7 +371,15 @@ export default function App() {
                     onDeleteCar={deleteCar} 
                   />
                 )}
-                {activeTab === 'diagnostics' && <DiagnosticChat messages={chatMessages} setMessages={setChatMessages} activeCar={activeCar} />}
+                {activeTab === 'diagnostics' && (
+                  <DiagnosticChat 
+                    messages={chatMessages} 
+                    setMessages={setChatMessages} 
+                    activeCar={activeCar} 
+                    pendingImage={pendingImage}
+                    onClearPendingImage={() => setPendingImage(null)}
+                  />
+                )}
                 {activeTab === 'obd' && <OBDScanner />}
                 {activeTab === 'knowledge' && <KnowledgeBase />}
                 {activeTab === 'profile' && <Profile session={session} userProfile={userProfile} cars={cars} onAddCar={addCar} onDeleteCar={deleteCar} activeCarIndex={activeCarIndex} onSwitchCar={switchCar} />}
