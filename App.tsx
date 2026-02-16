@@ -47,13 +47,15 @@ export default function App() {
   const [cars, setCars] = useState<any[]>([]);
   const [activeCarIndex, setActiveCarIndex] = useState(0);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   
   // Chat state persistence
   const [chatMessages, setChatMessages] = useState<any[]>([
     { id: '1', role: 'assistant', content: 'Здравствуйте! Я ваш ИИ-автомеханик. Опишите симптомы неисправности или введите коды ошибок OBD-II.' }
   ]);
 
-  const BUILD_VERSION = "4.2.11-ai-fix";
+  const BUILD_VERSION = "4.2.12-fixed";
 
   const safeParse = (str: string | null, fallback: any) => {
     if (!str) return fallback;
@@ -234,6 +236,12 @@ export default function App() {
     toast.success('Вы вышли из системы');
   };
 
+  const handleCameraCapture = (imageData: string) => {
+    setPendingImage(imageData);
+    setActiveTab('diagnostics');
+    toast.success("Фото получено! Анализирую...");
+  };
+
   if (isLoading || isAutoAuthenticating) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
@@ -244,8 +252,10 @@ export default function App() {
 
   if (!session) return <><Auth /><Toaster position="bottom-right" richColors /></>;
 
+  const activeCar = cars[activeCarIndex] || null;
+
   const navItems = [
-    { id: 'dashboard', label: 'Ра��очий стол', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
     { id: 'maintenance', label: 'Журнал ТО', icon: Wrench },
     { id: 'diagnostics', label: 'ИИ Диагностика', icon: MessageSquareCode },
     { id: 'obd', label: 'OBD-II Сканер', icon: Activity },
@@ -258,15 +268,6 @@ export default function App() {
     { id: 'maintenance', label: 'Журнал ТО', icon: Wrench },
     { id: 'profile', label: 'Профиль', icon: User },
   ];
-
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [pendingImage, setPendingImage] = useState<string | null>(null);
-
-  const handleCameraCapture = (imageData: string) => {
-    setPendingImage(imageData);
-    setActiveTab('diagnostics');
-    toast.success("Фото получено! Анализирую...");
-  };
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden relative">
