@@ -4,101 +4,61 @@ import {
   LayoutDashboard, 
   Car as CarIcon, 
   Wrench, 
-  Box, 
-  BarChart3, 
-  Calendar, 
+  History, 
   Plus, 
   Filter,
-  ChevronRight,
+  Download,
+  Trash2,
   TrendingUp,
   DollarSign,
-  Download,
-  Eye,
-  Edit2,
-  Trash2,
-  CheckCircle2,
-  Package,
-  ArrowUpRight,
-  ArrowDownRight,
-  Search,
-  Gauge,
-  Clock,
+  Fuel,
+  Cog,
+  Shield,
+  ChevronRight,
+  ChevronDown,
   X,
   PlusCircle,
-  Briefcase,
-  History,
   FileText,
-  User,
-  Settings as SettingsIcon,
-  ChevronDown,
-  Trash,
-  Plus as PlusIcon,
-  HardDrive,
-  CreditCard
+  PieChart as PieIcon,
+  Search
 } from 'lucide-react';
 import { 
-  LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
+  AreaChart, Area, PieChart, Pie, Cell, 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
-import { ImageWithFallback } from './figma/ImageWithFallback';
 import { toast } from 'sonner';
 
 // --- Interfaces ---
 
-interface Part {
-  id: string;
-  name: string;
-  sku: string;
-  quantity: number;
-  pricePerUnit: number;
-  totalPrice: number;
-}
+type RecordType = 'repair' | 'parts' | 'fuel' | 'service';
 
-interface Labor {
-  id: string;
-  description: string;
-  hours: number;
-  ratePerHour: number;
-  totalLaborCost: number;
-}
-
-interface MaintenanceEntry {
+interface MaintenanceRecord {
   id: string;
   carId: string;
-  title: string;
+  type: RecordType;
   date: string;
-  mileage: number;
   description: string;
-  master: string;
-  parts: Part[];
-  labor: Labor[];
-  totalCost: number;
-  currency: 'RUB' | 'USD' | 'EUR';
+  amount: number;
 }
 
-interface Car {
-  id: string;
-  make: string;
-  model: string;
-  year: number;
-  vin: string;
-  plate: string;
-  photoUrl: string;
-  status: 'active' | 'service' | 'sold';
-}
+const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; bgColor: string }> = {
+  repair: { label: 'Ремонт', icon: Wrench, color: 'text-rose-600', bgColor: 'bg-rose-50' },
+  parts: { label: 'Запчасти', icon: Cog, color: 'text-amber-600', bgColor: 'bg-amber-50' },
+  fuel: { label: 'Топливо', icon: Fuel, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
+  service: { label: 'ТО', icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-50' }
+};
 
-// --- Constants ---
-const COLORS = ['#4f46e5', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899'];
+const COLORS = ['#4f46e5', '#f59e0b', '#10b981', '#ef4444'];
 
 // --- Sub-Components ---
 
-const StatBox = ({ label, value, icon: Icon, color }: any) => (
+const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) => (
   <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-    <div className={`w-12 h-12 ${color} rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg`}>
+    <div className={`w-12 h-12 ${bgColorClass} ${colorClass} rounded-2xl flex items-center justify-center mb-4`}>
       <Icon size={20} />
     </div>
     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{label}</p>
-    <h4 className="text-xl font-black text-slate-900 tracking-tighter">{value}</h4>
+    <h4 className="text-2xl font-black text-slate-900 tracking-tighter">{value}</h4>
   </div>
 );
 
@@ -111,630 +71,432 @@ export const AdvancedMaintenanceJournal = ({
   onAddCar?: (car: any) => void, 
   onDeleteCar?: (id: string) => void 
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState('dashboard');
-  const [showAddEntryModal, setShowAddEntryModal] = useState(false);
-  
-  // Entries state (local for now, as requested "local version offline (optional)")
-  const [entries, setEntries] = useState<MaintenanceEntry[]>([]);
+  const [activeCarId, setActiveCarId] = useState<string | null>(cars[0]?.id || null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
+  // Persistence
   useEffect(() => {
-    const savedEntries = localStorage.getItem('autoai_maintenance_entries');
-    if (savedEntries) {
+    const saved = localStorage.getItem('autoai_maintenance_records');
+    if (saved) {
       try {
-        setEntries(JSON.parse(savedEntries));
+        setRecords(JSON.parse(saved));
       } catch (e) {
-        console.error("Failed to load entries", e);
+        console.error("Failed to load records", e);
       }
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('autoai_maintenance_entries', JSON.stringify(entries));
-  }, [entries]);
+    localStorage.setItem('autoai_maintenance_records', JSON.stringify(records));
+  }, [records]);
 
-  // Cleanup: Remove entries for cars that no longer exist
+  // Ensure active car is valid
   useEffect(() => {
-    const existingCarIds = new Set(cars.map(c => c.id));
-    const filteredEntries = entries.filter(entry => existingCarIds.has(entry.carId));
-    
-    if (filteredEntries.length !== entries.length) {
-      setEntries(filteredEntries);
+    if (cars.length > 0 && (!activeCarId || !cars.find(c => c.id === activeCarId))) {
+      setActiveCarId(cars[0].id);
     }
-  }, [cars, entries.length]); // Track entries length too
+  }, [cars, activeCarId]);
 
-  // Form States
-  const [newEntry, setNewEntry] = useState<Partial<MaintenanceEntry>>({
-    carId: '',
-    date: new Date().toISOString().split('T')[0],
-    parts: [],
-    labor: [],
-    currency: 'RUB'
-  });
+  const activeCar = cars.find(c => c.id === activeCarId);
+  
+  // Filter records for active car
+  const carRecords = useMemo(() => 
+    records.filter(r => r.carId === activeCarId && 
+      (r.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       CATEGORIES[r.type].label.toLowerCase().includes(searchTerm.toLowerCase()))
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  , [records, activeCarId, searchTerm]);
 
-  // Automatically update selected carId when cars change if none selected or selected one deleted
-  useEffect(() => {
-    if (cars.length > 0) {
-      const exists = cars.some(c => c.id === newEntry.carId);
-      if (!exists) {
-        setNewEntry(prev => ({ ...prev, carId: cars[0].id }));
-      }
-    } else {
-      setNewEntry(prev => ({ ...prev, carId: '' }));
-    }
-  }, [cars, newEntry.carId]);
+  // Stats
+  const stats = useMemo(() => {
+    const carRecs = records.filter(r => r.carId === activeCarId);
+    const total = carRecs.reduce((sum, r) => sum + r.amount, 0);
+    const byType = carRecs.reduce((acc, r) => {
+      acc[r.type] = (acc[r.type] || 0) + r.amount;
+      return acc;
+    }, {} as Record<string, number>);
 
-  // Calculations
-  const totalStats = useMemo(() => {
-    // Double check filtering for safety in calculations
-    const existingCarIds = new Set(cars.map(c => c.id));
-    const validEntries = entries.filter(e => existingCarIds.has(e.carId));
-    
-    const total = validEntries.reduce((acc, curr) => acc + (curr.totalCost || 0), 0);
-    const partsTotal = validEntries.reduce((acc, curr) => 
-      acc + (curr.parts?.reduce((pAcc, p) => pAcc + (p.totalPrice || 0), 0) || 0), 0
-    );
-    return { total, partsTotal, activeCars: cars.length, entryCount: validEntries.length };
-  }, [entries, cars]);
+    return { total, byType };
+  }, [records, activeCarId]);
 
   const chartData = useMemo(() => {
-    const existingCarIds = new Set(cars.map(c => c.id));
-    const validEntries = entries.filter(e => existingCarIds.has(e.carId));
-    
-    // Group by month for current year
-    const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-    const currentMonth = new Date().getMonth();
-    
-    return months.slice(0, currentMonth + 1).map((name, index) => {
-      const monthStr = (index + 1).toString().padStart(2, '0');
-      const cost = validEntries.reduce((acc, e) => {
-        return e.date.includes(`-${monthStr}-`) ? acc + (e.totalCost || 0) : acc;
-      }, 0);
-      return { name, cost };
-    });
-  }, [entries, cars]);
+    return Object.entries(CATEGORIES).map(([key, cat]) => ({
+      name: cat.label,
+      value: stats.byType[key as RecordType] || 0
+    })).filter(d => d.value > 0);
+  }, [stats]);
 
-  // Export Logic
+  const handleAddRecord = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!activeCarId) return;
+
+    const formData = new FormData(e.currentTarget);
+    const newRecord: MaintenanceRecord = {
+      id: Date.now().toString(),
+      carId: activeCarId,
+      type: formData.get('type') as RecordType,
+      date: formData.get('date') as string,
+      description: formData.get('description') as string,
+      amount: Number(formData.get('amount'))
+    };
+
+    setRecords(prev => [...prev, newRecord]);
+    setShowAddModal(false);
+    toast.success('Запись успешно сохранена');
+  };
+
+  const deleteRecord = (id: string) => {
+    setRecords(prev => prev.filter(r => r.id !== id));
+    toast.success('Запись удалена');
+  };
+
   const exportToCSV = () => {
-    const headers = ['ID', 'Машина', 'Дата', 'Пробег', 'Название', 'Стоимость'];
-    const rows = entries.map(e => {
-      const car = cars.find(c => c.id === e.carId);
-      return [e.id, `${car?.make} ${car?.model}`, e.date, e.mileage, e.title, e.totalCost];
-    });
+    if (!activeCar) return;
+    const headers = ['Дата', 'Тип', 'Описание', 'Сумма (₽)'];
+    const rows = carRecords.map(r => [
+      r.date,
+      CATEGORIES[r.type].label,
+      r.description,
+      r.amount
+    ]);
     
-    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "maintenance_report.csv");
+    link.setAttribute("download", `ТО_${activeCar.make}_${activeCar.model}.csv`);
     document.body.appendChild(link);
     link.click();
-    toast.success("Отчет экспортирован в CSV");
+    document.body.removeChild(link);
+    toast.success("Отчет успешно экспортирован");
   };
 
-  const addPartRow = () => {
-    const newPart: Part = { id: Date.now().toString(), name: '', sku: '', quantity: 1, pricePerUnit: 0, totalPrice: 0 };
-    setNewEntry(prev => ({ ...prev, parts: [...(prev.parts || []), newPart] }));
-  };
-
-  const addLaborRow = () => {
-    const newLabor: Labor = { id: Date.now().toString(), description: '', hours: 1, ratePerHour: 0, totalLaborCost: 0 };
-    setNewEntry(prev => ({ ...prev, labor: [...(prev.labor || []), newLabor] }));
-  };
-
-  const saveEntry = () => {
-    if (!newEntry.title || !newEntry.carId) {
-      toast.error("Заполните обязательные поля");
-      return;
-    }
-    const finalEntry = {
-      ...newEntry,
-      id: Date.now().toString(),
-      totalCost: (newEntry.parts?.reduce((a, b) => a + b.totalPrice, 0) || 0) + 
-                 (newEntry.labor?.reduce((a, b) => a + b.totalLaborCost, 0) || 0)
-    } as MaintenanceEntry;
-    
-    setEntries(prev => [finalEntry, ...prev]);
-    setShowAddEntryModal(false);
-    toast.success("Запись успешно добавлена");
-  };
-
-  const navItems = [
-    { id: 'dashboard', label: 'Рабочий стол', icon: LayoutDashboard },
-    { id: 'cars', label: 'Мои машины', icon: CarIcon },
-    { id: 'history', label: 'Журнал ТО', icon: History },
-    { id: 'parts', label: 'Запчасти', icon: Box },
-    { id: 'reports', label: 'Отчеты', icon: BarChart3 },
-    { id: 'settings', label: 'Настройки', icon: SettingsIcon },
-  ];
+  if (cars.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 text-center px-10">
+        <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center text-slate-300 mb-6">
+          <CarIcon size={40} />
+        </div>
+        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">Ваш парк пуст</h3>
+        <p className="text-sm text-slate-400 font-medium max-w-sm">Добавьте свой первый автомобиль в разделе «Мой профиль», чтобы начать вести детальный журнал обслуживания и следить за расходами.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      {/* Sub Navigation */}
-      <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-4 scrollbar-hide">
-        {navItems.map((item) => (
+    <div className="space-y-8 animate-in fade-in duration-500 pb-24">
+      {/* Car Tabs - Fleet Management style */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {cars.map(car => (
           <button
-            key={item.id}
-            onClick={() => setActiveSubTab(item.id)}
-            className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shrink-0 ${
-              activeSubTab === item.id 
-              ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
-              : 'bg-white text-slate-400 border border-slate-100 hover:text-slate-900 shadow-sm'
+            key={car.id}
+            onClick={() => setActiveCarId(car.id)}
+            className={`flex items-center gap-3 px-6 py-4 rounded-[24px] font-bold transition-all shrink-0 border-2 ${
+              activeCarId === car.id 
+              ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
+              : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
             }`}
           >
-            <item.icon size={14} />
-            {item.label}
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeCarId === car.id ? 'bg-white/20' : 'bg-slate-50 text-slate-400'}`}>
+              <CarIcon size={16} />
+            </div>
+            <div className="text-left">
+              <p className="text-[10px] uppercase font-black tracking-widest leading-none opacity-60 mb-0.5">{car.make}</p>
+              <p className="text-sm tracking-tight leading-none truncate max-w-[120px]">{car.model}</p>
+            </div>
           </button>
         ))}
       </div>
 
-      {/* View Switcher */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeSubTab}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.3 }}
-        >
-          {activeSubTab === 'dashboard' && (
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatBox label="Всего затрат" value={`${totalStats.total.toLocaleString()} ₽`} icon={DollarSign} color="bg-indigo-600" />
-                <StatBox label="Запчасти" value={`${totalStats.partsTotal.toLocaleString()} ₽`} icon={Package} color="bg-amber-500" />
-                <StatBox label="Автомобилей" value={totalStats.activeCars} icon={CarIcon} color="bg-emerald-500" />
-                <StatBox label="Записей ТО" value={totalStats.entryCount} icon={History} color="bg-rose-500" />
+      {activeCar && (
+        <div className="space-y-8">
+          {/* Dashboard Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                {activeCar.make} {activeCar.model}
+                <span className="text-xs bg-slate-900 text-white px-3 py-1 rounded-lg font-black tracking-widest uppercase">{activeCar.plate}</span>
+              </h2>
+              <p className="text-slate-400 font-medium text-sm mt-1">Всего записей в журнале: {carRecords.length}</p>
+            </div>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <button 
+                onClick={exportToCSV}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
+              >
+                <Download size={14} /> Экспорт
+              </button>
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+              >
+                <Plus size={16} /> Новая запись
+              </button>
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-1 bg-indigo-600 p-6 rounded-[32px] text-white shadow-xl shadow-indigo-100 flex flex-col justify-between">
+              <div>
+                <DollarSign size={24} className="mb-4 opacity-50" />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-80">Общие затраты</p>
+                <h4 className="text-2xl font-black tracking-tighter">{stats.total.toLocaleString()} ₽</h4>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                  <div className="flex justify-between items-center mb-8">
-                    <div>
-                      <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Динамика расходов</h3>
-                      <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Последние 4 месяца</p>
-                    </div>
-                    <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all">
-                      <Download size={14} /> Экспорт CSV
-                    </button>
-                  </div>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
-                        <defs>
-                          <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#94a3b8'}} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#94a3b8'}} />
-                        <Tooltip contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }} />
-                        <Area type="monotone" dataKey="cost" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#colorCost)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col">
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-6">Ваши Автомобили</h3>
-                  <div className="space-y-4 flex-1">
-                    {cars.length > 0 ? cars.map(car => (
-                      <div key={car.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-3xl group hover:bg-white hover:shadow-md transition-all">
-                        <div className="w-16 h-12 rounded-2xl overflow-hidden shrink-0 border border-white">
-                          <ImageWithFallback src={car.photoUrl} alt={car.model} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-black text-slate-900 text-sm truncate uppercase tracking-tight">{car.make} {car.model}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{car.plate || 'Нет номера'}</p>
-                        </div>
-                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                      </div>
-                    )) : (
-                      <div className="flex flex-col items-center justify-center py-10 opacity-40">
-                        <CarIcon size={32} />
-                        <p className="text-[10px] font-black uppercase tracking-widest mt-2">Нет машин</p>
-                      </div>
-                    )}
-                  </div>
-                  <button 
-                    onClick={() => setActiveSubTab('cars')}
-                    className="mt-6 w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center justify-center gap-2"
-                  >
-                    Управление парком
-                    <ArrowUpRight size={14} />
-                  </button>
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <div className="flex items-center gap-2 text-[10px] font-bold">
+                  <TrendingUp size={12} className="text-emerald-400" />
+                  <span>На основе {carRecords.length} операций</span>
                 </div>
               </div>
             </div>
-          )}
+            
+            <StatCard 
+              label="🔧 Ремонт" 
+              value={`${(stats.byType.repair || 0).toLocaleString()} ₽`} 
+              icon={Wrench} 
+              colorClass="text-rose-600" 
+              bgColorClass="bg-rose-50" 
+            />
+            <StatCard 
+              label="⚙️ Запчасти" 
+              value={`${(stats.byType.parts || 0).toLocaleString()} ₽`} 
+              icon={Cog} 
+              colorClass="text-amber-600" 
+              bgColorClass="bg-amber-50" 
+            />
+            <StatCard 
+              label="⛽ Топливо" 
+              value={`${(stats.byType.fuel || 0).toLocaleString()} ₽`} 
+              icon={Fuel} 
+              colorClass="text-indigo-600" 
+              bgColorClass="bg-indigo-50" 
+            />
+            <StatCard 
+              label="🔩 ТО" 
+              value={`${(stats.byType.service || 0).toLocaleString()} ₽`} 
+              icon={Shield} 
+              colorClass="text-emerald-600" 
+              bgColorClass="bg-emerald-50" 
+            />
+          </div>
 
-          {activeSubTab === 'cars' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {cars.map(car => (
-                <div key={car.id} className="bg-white rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl transition-all group p-8 space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
-                      <CarIcon size={28} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">{car.make}</p>
-                      <h4 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">{car.model}</h4>
-                    </div>
-                  </div>
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-slate-50 rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Год</p>
-                        <p className="font-black text-slate-900">{car.year}</p>
-                      </div>
-                      <div className="p-4 bg-slate-50 rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Госномер</p>
-                        <p className="font-black text-slate-900">{car.plate}</p>
-                      </div>
-                    </div>
-                    <div className="p-4 bg-slate-50 rounded-2xl">
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">VIN Но��ер</p>
-                      <p className="font-black text-slate-900 text-xs tracking-widest">{car.vin}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => {
-                          setNewEntry(prev => ({ ...prev, carId: car.id }));
-                          setShowAddEntryModal(true);
-                        }}
-                        className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all"
+          {/* Analytics and History */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Visual Analytics */}
+            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                  <PieIcon size={20} />
+                </div>
+                <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Распределение трат</h3>
+              </div>
+              
+              <div className="h-[240px] relative">
+                {chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
                       >
-                        Добавить ТО
-                      </button>
-                      <button className="w-14 h-14 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all">
-                        <SettingsIcon size={20} />
-                      </button>
-                    </div>
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', fontSize: '12px', fontWeight: 'bold' }} 
+                      />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36} 
+                        iconType="circle" 
+                        formatter={(value) => <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                    <PieIcon size={48} className="opacity-20 mb-2" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">Нет данных для графика</p>
                   </div>
-                </div>
-              ))}
-              {cars.length === 0 && (
-                <div className="col-span-full py-20 bg-white rounded-[40px] border border-dashed border-slate-200 flex flex-col items-center justify-center text-center px-10">
-                  <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center text-slate-300 mb-6">
-                    <CarIcon size={40} />
-                  </div>
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">Ваш парк пуст</h3>
-                  <p className="text-sm text-slate-400 font-medium max-w-sm">Добавьте свой первый автомобиль в разделе «Мой гараж», чтобы начать вести детальный журнал обслуживания и следить за расходами.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeSubTab === 'history' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between gap-4">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="text" placeholder="Поиск по истории..." className="w-full pl-12 pr-6 py-4 bg-white border border-slate-100 rounded-2xl text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all" />
-                </div>
-                <button 
-                  onClick={() => setShowAddEntryModal(true)}
-                  className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2"
-                >
-                  <Plus size={14} /> Новая запись
-                </button>
+                )}
               </div>
+            </div>
 
-              <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+            {/* History Table */}
+            <div className="lg:col-span-2 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-8 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center">
+                    <History size={20} />
+                  </div>
+                  <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">История операций</h3>
+                </div>
+                <div className="relative w-full sm:w-auto">
+                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                  <input 
+                    type="text" 
+                    placeholder="Поиск..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full sm:w-64 bg-slate-50 border-none rounded-xl py-3 pl-10 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              
+              <div className="overflow-x-auto flex-1">
+                {carRecords.length > 0 ? (
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50/50 border-b border-slate-100">
-                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Запись / Машина</th>
-                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Дата</th>
-                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Пробег</th>
-                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Итог</th>
+                      <tr className="bg-slate-50/30">
+                        <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Операция</th>
+                        <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Дата</th>
+                        <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Сумма</th>
+                        <th className="px-8 py-4 text-center"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {entries.map(entry => {
-                        const car = cars.find(c => c.id === entry.carId);
+                      {carRecords.map(record => {
+                        const cat = CATEGORIES[record.type];
+                        const Icon = cat.icon;
                         return (
-                          <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer group">
-                            <td className="px-8 py-6">
+                          <tr key={record.id} className="hover:bg-slate-50/50 transition-colors group">
+                            <td className="px-8 py-5">
                               <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                                  <Wrench size={18} />
+                                <div className={`w-10 h-10 rounded-xl ${cat.bgColor} ${cat.color} flex items-center justify-center shrink-0`}>
+                                  <Icon size={18} />
                                 </div>
                                 <div>
-                                  <p className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase text-sm tracking-tight">{entry.title}</p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{car?.make} {car?.model}</p>
+                                  <p className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight leading-tight">{record.description}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{cat.label}</p>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-8 py-6 text-sm font-bold text-slate-500">{entry.date}</td>
-                            <td className="px-8 py-6 font-black text-slate-700">{entry.mileage.toLocaleString()} км</td>
-                            <td className="px-8 py-6 text-right">
-                              <div className="inline-flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-xl text-indigo-600 font-black text-sm">
-                                {entry.totalCost.toLocaleString()} ₽
-                              </div>
+                            <td className="px-8 py-5 text-xs font-bold text-slate-500">
+                              {new Date(record.date).toLocaleDateString('ru-RU')}
+                            </td>
+                            <td className="px-8 py-5 text-right">
+                              <span className={`inline-flex items-center px-3 py-1.5 rounded-xl font-black text-xs ${cat.bgColor} ${cat.color}`}>
+                                {record.amount.toLocaleString()} ₽
+                              </span>
+                            </td>
+                            <td className="px-8 py-5 text-center">
+                              <button 
+                                onClick={() => deleteRecord(record.id)}
+                                className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
-                </div>
+                ) : (
+                  <div className="py-20 flex flex-col items-center justify-center text-slate-300">
+                    <FileText size={48} className="opacity-20 mb-4" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">Записей не найдено</p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* Fallback for other tabs */}
-          {['parts', 'reports', 'settings'].includes(activeSubTab) && (
-            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[40px] border border-dashed border-slate-200 text-center">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-6">
-                <SettingsIcon size={40} />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">Раздел в разработке</h3>
-              <p className="text-sm font-bold text-slate-400 max-w-xs uppercase tracking-widest leading-relaxed">
-                Этот функционал будет доступен в версии v5.0.0
-              </p>
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Advanced Add Entry Modal */}
+      {/* Add Record Modal */}
       <AnimatePresence>
-        {showAddEntryModal && (
+        {showAddModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddEntryModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
             <motion.div 
               initial={{ scale: 0.9, opacity: 0, y: 20 }} 
               animate={{ scale: 1, opacity: 1, y: 0 }} 
               exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-              className="bg-white rounded-[40px] w-full max-w-4xl p-10 shadow-2xl relative z-10 overflow-y-auto max-h-[90vh] custom-scrollbar"
+              className="bg-white rounded-[40px] w-full max-w-lg p-10 shadow-2xl relative z-10"
             >
-              <div className="flex justify-between items-center mb-10 pb-6 border-b border-slate-100">
+              <div className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
-                    <Wrench size={24} />
+                    <Plus size={24} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Оформить Обслуживание</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Заполните детали работ и запчастей</p>
+                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Новая запись</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Добавление в журнал ТО</p>
                   </div>
                 </div>
-                <button onClick={() => setShowAddEntryModal(false)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-slate-900 transition-colors">
+                <button onClick={() => setShowAddModal(false)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-slate-900 transition-colors">
                   <X size={24} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                {/* Main Info */}
-                <div className="space-y-6">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Автомобиль</label>
+              <form onSubmit={handleAddRecord} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Тип операции</label>
                     <select 
-                      value={newEntry.carId}
-                      onChange={(e) => setNewEntry({ ...newEntry, carId: e.target.value })}
-                      className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
+                      name="type" 
+                      required
+                      className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none appearance-none cursor-pointer"
                     >
-                      {cars.map(c => <option key={c.id} value={c.id}>{c.make} {c.model} ({c.plate})</option>)}
+                      {Object.entries(CATEGORIES).map(([key, cat]) => (
+                        <option key={key} value={key}>{cat.label}</option>
+                      ))}
                     </select>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Название ТО / Ремонта</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Дата</label>
                     <input 
-                      type="text" 
-                      placeholder="Например: Замена масла и фильтров"
-                      value={newEntry.title || ''}
-                      onChange={(e) => setNewEntry({ ...newEntry, title: e.target.value })}
+                      name="date" 
+                      type="date" 
+                      required
+                      defaultValue={new Date().toISOString().split('T')[0]}
                       className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Дата</label>
-                      <input 
-                        type="date" 
-                        value={newEntry.date}
-                        onChange={(e) => setNewEntry({ ...newEntry, date: e.target.value })}
-                        className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Пробег (км)</label>
-                      <input 
-                        type="number" 
-                        value={newEntry.mileage || ''}
-                        onChange={(e) => setNewEntry({ ...newEntry, mileage: parseInt(e.target.value) })}
-                        className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Мастер / СТО</label>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Описание работ / покупки</label>
+                  <input 
+                    name="description" 
+                    type="text" 
+                    required
+                    placeholder="Напр: Замена масла и фильтра"
+                    className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Сумма (₽)</label>
+                  <div className="relative">
+                    <DollarSign size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" />
                     <input 
-                      type="text" 
-                      placeholder="Название сервиса"
-                      value={newEntry.master || ''}
-                      onChange={(e) => setNewEntry({ ...newEntry, master: e.target.value })}
-                      className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Описание работ</label>
-                    <textarea 
-                      rows={3}
-                      placeholder="Дополнительные детали..."
-                      value={newEntry.description || ''}
-                      onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
-                      className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none resize-none"
+                      name="amount" 
+                      type="number" 
+                      required
+                      placeholder="0"
+                      className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
                     />
                   </div>
                 </div>
 
-                {/* Parts and Labor */}
-                <div className="space-y-8">
-                  {/* Parts Section */}
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center px-1">
-                      <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em]">Запчасти / Расходники</h4>
-                      <button onClick={addPartRow} className="text-indigo-600 hover:text-indigo-700 font-black text-[10px] uppercase flex items-center gap-1 transition-colors">
-                        <PlusCircle size={14} /> Добавить позицию
-                      </button>
-                    </div>
-                    <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                      {newEntry.parts?.map((part, idx) => (
-                        <div key={part.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-3 relative group">
-                          <button 
-                            onClick={() => setNewEntry(prev => ({ ...prev, parts: prev.parts?.filter(p => p.id !== part.id) }))}
-                            className="absolute -top-2 -right-2 w-7 h-7 bg-rose-500 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg"
-                          >
-                            <X size={14} />
-                          </button>
-                          <div className="grid grid-cols-2 gap-3">
-                            <input 
-                              placeholder="Наименование" 
-                              className="bg-white border-none rounded-xl py-2 px-3 text-xs font-bold"
-                              value={part.name}
-                              onChange={(e) => {
-                                const updatedParts = [...(newEntry.parts || [])];
-                                updatedParts[idx].name = e.target.value;
-                                setNewEntry({ ...newEntry, parts: updatedParts });
-                              }}
-                            />
-                            <input 
-                              placeholder="Артикул / SKU" 
-                              className="bg-white border-none rounded-xl py-2 px-3 text-xs font-bold"
-                              value={part.sku}
-                              onChange={(e) => {
-                                const updatedParts = [...(newEntry.parts || [])];
-                                updatedParts[idx].sku = e.target.value;
-                                setNewEntry({ ...newEntry, parts: updatedParts });
-                              }}
-                            />
-                          </div>
-                          <div className="grid grid-cols-3 gap-3">
-                            <input 
-                              type="number" placeholder="Кол-во" className="bg-white border-none rounded-xl py-2 px-3 text-xs font-bold"
-                              value={part.quantity}
-                              onChange={(e) => {
-                                const updatedParts = [...(newEntry.parts || [])];
-                                updatedParts[idx].quantity = parseInt(e.target.value);
-                                updatedParts[idx].totalPrice = updatedParts[idx].quantity * updatedParts[idx].pricePerUnit;
-                                setNewEntry({ ...newEntry, parts: updatedParts });
-                              }}
-                            />
-                            <input 
-                              type="number" placeholder="Цена" className="bg-white border-none rounded-xl py-2 px-3 text-xs font-bold"
-                              value={part.pricePerUnit}
-                              onChange={(e) => {
-                                const updatedParts = [...(newEntry.parts || [])];
-                                updatedParts[idx].pricePerUnit = parseFloat(e.target.value);
-                                updatedParts[idx].totalPrice = updatedParts[idx].quantity * updatedParts[idx].pricePerUnit;
-                                setNewEntry({ ...newEntry, parts: updatedParts });
-                              }}
-                            />
-                            <div className="bg-indigo-600 text-white rounded-xl py-2 px-3 text-[10px] font-black flex items-center justify-center">
-                              {part.totalPrice.toLocaleString()} ₽
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      {newEntry.parts?.length === 0 && <p className="text-[10px] font-bold text-slate-300 uppercase text-center py-4 border-2 border-dashed border-slate-100 rounded-3xl tracking-widest">Нет добавленных запчастей</p>}
-                    </div>
-                  </div>
-
-                  {/* Labor Section */}
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center px-1">
-                      <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em]">Работы / Ремонт</h4>
-                      <button onClick={addLaborRow} className="text-indigo-600 hover:text-indigo-700 font-black text-[10px] uppercase flex items-center gap-1 transition-colors">
-                        <PlusCircle size={14} /> Добавить работу
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {newEntry.labor?.map((lab, idx) => (
-                        <div key={lab.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-3 relative group">
-                          <button 
-                            onClick={() => setNewEntry(prev => ({ ...prev, labor: prev.labor?.filter(l => l.id !== lab.id) }))}
-                            className="absolute -top-2 -right-2 w-7 h-7 bg-rose-500 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg"
-                          >
-                            <X size={14} />
-                          </button>
-                          <input 
-                            placeholder="Вид работы (напр: Замена ГРМ)" 
-                            className="bg-white border-none rounded-xl py-2 px-3 text-xs font-bold"
-                            value={lab.description}
-                            onChange={(e) => {
-                              const updatedLabor = [...(newEntry.labor || [])];
-                              updatedLabor[idx].description = e.target.value;
-                              setNewEntry({ ...newEntry, labor: updatedLabor });
-                            }}
-                          />
-                          <div className="grid grid-cols-3 gap-3">
-                            <input 
-                              type="number" placeholder="Часы" className="bg-white border-none rounded-xl py-2 px-3 text-xs font-bold"
-                              value={lab.hours}
-                              onChange={(e) => {
-                                const updatedLabor = [...(newEntry.labor || [])];
-                                updatedLabor[idx].hours = parseFloat(e.target.value);
-                                updatedLabor[idx].totalLaborCost = updatedLabor[idx].hours * updatedLabor[idx].ratePerHour;
-                                setNewEntry({ ...newEntry, labor: updatedLabor });
-                              }}
-                            />
-                            <input 
-                              type="number" placeholder="Ставка" className="bg-white border-none rounded-xl py-2 px-3 text-xs font-bold"
-                              value={lab.ratePerHour}
-                              onChange={(e) => {
-                                const updatedLabor = [...(newEntry.labor || [])];
-                                updatedLabor[idx].ratePerHour = parseFloat(e.target.value);
-                                updatedLabor[idx].totalLaborCost = updatedLabor[idx].hours * updatedLabor[idx].ratePerHour;
-                                setNewEntry({ ...newEntry, labor: updatedLabor });
-                              }}
-                            />
-                            <div className="bg-slate-900 text-white rounded-xl py-2 px-3 text-[10px] font-black flex items-center justify-center">
-                              {lab.totalLaborCost.toLocaleString()} ₽
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary Footer */}
-              <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex gap-10">
-                  <div className="text-center">
-                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Запчасти</p>
-                    <p className="text-xl font-black text-slate-900">{newEntry.parts?.reduce((a, b) => a + b.totalPrice, 0).toLocaleString()} ₽</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Работы</p>
-                    <p className="text-xl font-black text-slate-900">{newEntry.labor?.reduce((a, b) => a + b.totalLaborCost, 0).toLocaleString()} ₽</p>
-                  </div>
-                  <div className="text-center bg-indigo-50 px-6 py-2 rounded-2xl border border-indigo-100">
-                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-widest mb-1">Итого к оплате</p>
-                    <p className="text-xl font-black text-indigo-600">
-                      {((newEntry.parts?.reduce((a, b) => a + b.totalPrice, 0) || 0) + 
-                       (newEntry.labor?.reduce((a, b) => a + b.totalLaborCost, 0) || 0)).toLocaleString()} ₽
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-4 w-full md:w-auto">
-                  <button 
-                    onClick={() => setShowAddEntryModal(false)}
-                    className="flex-1 md:flex-none px-10 py-4 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all"
-                  >
-                    Отмена
-                  </button>
-                  <button 
-                    onClick={saveEntry}
-                    className="flex-1 md:flex-none px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
-                  >
-                    Сохранить ТО
-                  </button>
-                </div>
-              </div>
+                <button 
+                  type="submit"
+                  className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 mt-4 active:scale-[0.98]"
+                >
+                  Сохранить запись
+                </button>
+              </form>
             </motion.div>
           </div>
         )}
