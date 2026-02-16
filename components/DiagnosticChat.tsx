@@ -163,7 +163,8 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage,
       description: msg.results?.[0]?.diagnosis || 'Анализ симптомов',
       cost: msg.results?.[0]?.estimatedCost || '0',
       details: msg.content,
-      mileage: activeCar.mileage || 0
+      mileage: activeCar.mileage || 0,
+      receiptImage: msg.image
     };
 
     if ((window as any).addServiceRecord) {
