@@ -31,16 +31,137 @@ interface CarFormData {
 }
 
 const CAR_DATABASE: Record<string, string[]> = {
-  'Toyota': ['Camry', 'Corolla', 'RAV4', 'Land Cruiser', 'Prius', 'Supra'],
-  'BMW': ['3 Series', '5 Series', 'X5', 'X7', 'M3', 'M5', 'i8'],
-  'Mercedes-Benz': ['C-Class', 'E-Class', 'S-Class', 'GLE', 'GLS', 'AMG GT'],
-  'Audi': ['A4', 'A6', 'Q5', 'Q7', 'Q8', 'RS6'],
-  'Tesla': ['Model 3', 'Model S', 'Model X', 'Model Y', 'Cybertruck'],
-  'Lada': ['Vesta', 'Granta', 'Niva Travel', 'Niva Legend', 'Largus'],
-  'Hyundai': ['Solaris', 'Creta', 'Tucson', 'Santa Fe', 'Elantra'],
-  'Kia': ['Rio', 'Sportage', 'Sorento', 'K5', 'Ceed'],
-  'Volkswagen': ['Polo', 'Tiguan', 'Passat', 'Touareg', 'Golf'],
-  'Porsche': ['911', 'Cayenne', 'Panamera', 'Taycan', 'Macan'],
+  // 🇷🇺 РОССИЯ (35+ брендов)
+  'Aurus': ['Senat', 'Ars', 'Komendant'],
+  'Lada': ['Vesta', 'Granta', 'Niva Travel', 'Niva Legend', 'Largus', 'XRAY', 'Kalina', 'Priora', '2107'],
+  'UAZ': ['Patriot', 'Pickup', 'Pro', 'Hunter', 'Buhanka', 'Simbir', 'Bars'],
+  'GAZ': ['Sobol', 'Gazelle Next', 'Vector Next', 'Соболь NN', 'GAZelle City', 'Vector'],
+  'GAZ Volga': ['GAZ-21', 'GAZ-24', '3110', '31105'],
+  'Ural': ['4320', '5923', '6370', 'Next', '43202', '6313'],
+  'Moskvich': ['3', '5', '7', 'U'],
+  'Evolute': ['i-Joy', 'i-Pro', 'i-Quest'],
+  'Solaris': ['3', '5', '7'],
+  'TagAZ': ['Tager', 'Road Partner', 'Blackwood'],
+  'Vortex': ['Tingo', 'Cordus', 'Estina'],
+  'Derways': ['Cowboy', 'Land Rover Freelander 2'],
+  'ИЖ': ['2126 Oda', '2715', '27175'],
+  'ЗИЛ': ['5301', 'Bychok', 'Неман'],
+  'МАЗ': ['5336', '6422', '5432'],
+  'КрАЗ': ['255', '6510', '6322'],
+  'БелАЗ': ['75710', '7577', '7578'],
+  'КамАЗ': ['5490', '6520', '43118'],
+
+  // 🇺🇦/🇧🇾
+  'ЗАЗ': ['Lanos', 'Tavria', 'Sens', 'Slavuta'],
+  'Bogdan': ['2110', '2310', 'A091', 'A601'],
+  'МАЗ-МАН': ['R06', 'TGX'],
+
+  // 🇯🇵 ЯПОНИЯ (25+)
+  'Toyota': ['Camry', 'Corolla', 'RAV4', 'Land Cruiser', 'Prius', 'Supra', 'Hilux', 'Highlander', 'Fortuner', 'Avalon', 'C-HR', 'Yaris'],
+  'Honda': ['Civic', 'CR-V', 'Pilot', 'Accord', 'HR-V', 'Odyssey', 'Ridgeline'],
+  'Nissan': ['Qashqai', 'X-Trail', 'Almera', 'Navara', 'Patrol', 'Leaf', 'Murano', 'Juke', 'GT-R'],
+  'Mazda': ['CX-5', 'CX-30', 'Mazda3', 'CX-9', 'MX-5', 'CX-8', 'CX-50'],
+  'Subaru': ['Forester', 'Outback', 'XV', 'Impreza', 'WRX', 'Levorg', 'BRZ'],
+  'Mitsubishi': ['Outlander', 'Pajero Sport', 'ASX', 'L200', 'Eclipse Cross', 'Delica'],
+  'Suzuki': ['Vitara', 'SX4', 'Jimny', 'Grand Vitara', 'Swift', 'Ignis'],
+  'Lexus': ['RX', 'NX', 'LX', 'ES', 'GX', 'LS', 'UX'],
+  'Infiniti': ['QX60', 'QX50', 'Q50', 'QX80', 'QX30'],
+  'Isuzu': ['D-Max', 'MU-X', 'Trooper'],
+  'Daihatsu': ['Terios', 'Cuore', 'Move'],
+  'Mitsuoka': ['Viewt', 'Galue', 'Orochi'],
+
+  // 🇩🇪 ГЕРМАНИЯ (20+)
+  'BMW': ['3 Series', '5 Series', 'X5', 'X7', 'M3', 'M5', 'i8', 'X3', 'X1', '7 Series', 'i4', 'iX', 'Z4', 'X6'],
+  'Mercedes-Benz': ['C-Class', 'E-Class', 'S-Class', 'GLE', 'GLS', 'AMG GT', 'A-Class', 'G-Class', 'CLA', 'GLE Coupe', 'EQS'],
+  'Audi': ['A4', 'A6', 'Q5', 'Q7', 'Q8', 'RS6', 'A3', 'A8', 'TT', 'e-tron', 'A1', 'R8'],
+  'Volkswagen': ['Polo', 'Tiguan', 'Passat', 'Touareg', 'Golf', 'ID.4', 'Teramont', 'Arteon', 'T-Roc'],
+  'Porsche': ['911', 'Cayenne', 'Panamera', 'Taycan', 'Macan', 'Boxster', 'Cayman'],
+  'Opel': ['Corsa', 'Astra', 'Insignia', 'Grandland X', 'Crossland X'],
+  'Smart': ['Fortwo', 'Forfour'],
+
+  // 🇺🇸 США (25+)
+  'Ford': ['Focus', 'Kuga', 'Explorer', 'Mondeo', 'Mustang', 'F-150', 'Ranger', 'Bronco'],
+  'Chevrolet': ['Camaro', 'Silverado', 'Tahoe', 'Traverse', 'Equinox', 'Colorado'],
+  'Dodge': ['Challenger', 'Charger', 'Durango', 'Journey'],
+  'Jeep': ['Grand Cherokee', 'Wrangler', 'Compass', 'Renegade', 'Gladiator'],
+  'Cadillac': ['Escalade', 'CT5', 'XT5', 'Lyriq', 'XT4'],
+  'GMC': ['Yukon', 'Sierra', 'Acadia', 'Hummer EV'],
+  'Tesla': ['Model 3', 'Model S', 'Model X', 'Model Y', 'Cybertruck', 'Roadster'],
+  'Chrysler': ['Pacifica', '300'],
+  'Lincoln': ['Navigator', 'Aviator', 'Corsair'],
+  'Hummer': ['H1', 'H2', 'H3', 'EV'],
+
+  // 🇰🇷 КОРЕЯ (10+)
+  'Hyundai': ['Solaris', 'Creta', 'Tucson', 'Santa Fe', 'Elantra', 'Palisade', 'i30', 'Ioniq 5'],
+  'Kia': ['Rio', 'Sportage', 'Sorento', 'K5', 'Ceed', 'Seltos', 'Carnival', 'EV6'],
+  'Genesis': ['G80', 'GV80', 'G70', 'GV70', 'G90'],
+  'SsangYong': ['Rexton', 'Korando', 'Actyon', 'Tivoli', 'Musso'],
+
+  // 🇨🇳 КИТАЙ (50+)
+  'Geely': ['Coolray', 'Atlas', 'Monjaro', 'Emgrand', 'Okavango', 'Tugella', 'Preface'],
+  'Chery': ['Tiggo 7', 'Tiggo 8', 'Omoda 5', 'Jaecoo 7', 'Exeed VX', 'Tiggo 4', 'Arrizo 5'],
+  'Haval': ['Jolion', 'F7', 'Dargo', 'H9', 'H6', 'F7x'],
+  'Tank': ['300', '500', 'U9'],
+  'Changan': ['CS55', 'CS75', 'Uni-T', 'Deepal S7', 'CS85'],
+  'BYD': ['Song', 'Han', 'Tang', 'Seal', 'Dolphin', 'Yuan'],
+  'Jetour': ['X70', 'Dashing', 'T2', 'X90'],
+  'JAC': ['JS4', 'JS8', 'Sehol', 'Refine'],
+  'Great Wall': ['Ora 03', 'Wey Coffee 01', 'P series'],
+  'FAW': ['Bestune T77', 'Hongqi H5', 'Hongqi E-HS9'],
+  'Nio': ['ES8', 'ET7', 'EL7'],
+  'XPeng': ['P7', 'G9', 'P5'],
+  'Li Auto': ['L9', 'L7', 'One'],
+  'Zeekr': ['001', 'X', '009', '007'],
+  'Omoda': ['C5'],
+  'Jaecoo': ['J7'],
+  'Exeed': ['TXL', 'VX', 'LX'],
+  'Lynk&Co': ['01', '03', '05', '09'],
+
+  // 🇫🇷 ФРАНЦИЯ
+  'Renault': ['Logan', 'Duster', 'Sandero', 'Arkana', 'Captur', 'Megane'],
+  'Peugeot': ['208', '3008', '5008', '2008', '308'],
+  'Citroen': ['C3', 'C4', 'C5 Aircross', 'Berlingo', '2CV', 'DS'],
+  'DS': ['DS3', 'DS4', 'DS7', 'DS9'],
+  'Alpine': ['A110'],
+
+  // 🇮🇹 ИТАЛИЯ
+  'Fiat': ['500', 'Panda', 'Tipo', 'Doblo', '500X'],
+  'Alfa Romeo': ['Giulia', 'Stelvio', 'Tonale', 'Junior'],
+  'Ferrari': ['SF90', 'Roma', '296 GTB', 'Purosangue', '812'],
+  'Lamborghini': ['Huracan', 'Urus', 'Revuelto'],
+  'Maserati': ['Ghibli', 'Levante', 'Quattroporte', 'MC20'],
+
+  // 🇬🇧 БРИТАНИЯ
+  'Land Rover': ['Defender', 'Discovery', 'Range Rover', 'Velar', 'Discovery Sport'],
+  'Jaguar': ['F-Pace', 'E-Pace', 'XF', 'XJ'],
+  'Mini': ['Cooper', 'Countryman', 'Clubman', 'Convertible'],
+  'Rolls-Royce': ['Phantom', 'Cullinan', 'Spectre', 'Ghost'],
+  'Bentley': ['Continental GT', 'Flying Spur', 'Bentayga'],
+  'Aston Martin': ['DBX', 'DB12', 'Vantage', 'Vanquish'],
+
+  // 🇨🇿/🇪🇸/🇸🇪
+  'Skoda': ['Octavia', 'Kodiaq', 'Karoq', 'Superb', 'Yeti', 'Kamiq'],
+  'Seat': ['Leon', 'Ateca', 'Arona', 'Tarraco'],
+  'Cupra': ['Formentor', 'Leon', 'Born', 'Tavascan'],
+  'Volvo': ['XC90', 'XC60', 'S60', 'EX30', 'V90'],
+
+  // ЭКЗОТИКА + КЛАССИКА (100+)
+  'Acura': ['MDX', 'RDX', 'Integra'],
+  'Bugatti': ['Chiron', 'Veyron', 'Mistral'],
+  'Pagani': ['Huayra', 'Zonda', 'Utopia'],
+  'McLaren': ['720S', 'Artura', 'P1'],
+  'Lotus': ['Emira', 'Eletre', 'Evora'],
+  'Koenigsegg': ['Jesko', 'Gemera', 'Agera'],
+  'Pininfarina': ['Battista'],
+  'Rimac': ['Nevera'],
+  'Polestar': ['2', '3', '4'],
+  'Fisker': ['Ocean', 'Pear'],
+  'Lucid': ['Air'],
+  'Rivian': ['R1T', 'R1S'],
+  'RAM': ['1500', '2500', '3500'],
+  'Trabant': ['601'],
+  'SAAB': ['9-3', '9-5'],
+  'Другое': ['Своя модель'],
 };
 
 export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, activeCarIndex, onSwitchCar }: { 
@@ -66,17 +187,31 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
   });
 
   const selectedMake = watch('make');
+  const selectedModel = watch('model');
+
+  const [customMake, setCustomMake] = useState('');
+  const [customModel, setCustomModel] = useState('');
 
   useEffect(() => {
-    if (selectedMake && CAR_DATABASE[selectedMake]) {
+    if (selectedMake && selectedMake !== 'Другое' && CAR_DATABASE[selectedMake]) {
       setValue('model', CAR_DATABASE[selectedMake][0]);
+    } else if (selectedMake === 'Другое') {
+      setValue('model', 'Своя модель');
     }
   }, [selectedMake, setValue]);
 
   const onSubmit = (data: CarFormData) => {
+    const finalMake = data.make === 'Другое' ? customMake : data.make;
+    const finalModel = data.model === 'Своя модель' ? customModel : data.model;
+
+    if (!finalMake || !finalModel) {
+      toast.error('Пожалуйста, укажите марку и модель');
+      return;
+    }
+
     const newCar = {
-      make: data.make,
-      model: data.model,
+      make: finalMake,
+      model: finalModel,
       vin: data.vin,
       year: data.year,
       engine: data.engine,
@@ -121,6 +256,15 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
                   <ChevronRight size={16} className="rotate-90" />
                 </div>
               </div>
+              {selectedMake === 'Другое' && (
+                <input 
+                  type="text"
+                  placeholder="Введите марку вручную"
+                  value={customMake}
+                  onChange={(e) => setCustomMake(e.target.value)}
+                  className="w-full mt-2 bg-indigo-50/50 border-2 border-indigo-100 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all animate-in zoom-in-95 duration-200"
+                />
+              )}
             </div>
 
             <div>
@@ -143,6 +287,15 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
                   <ChevronRight size={16} className="rotate-90" />
                 </div>
               </div>
+              {(selectedModel === 'Своя модель' || selectedMake === 'Другое') && (
+                <input 
+                  type="text"
+                  placeholder="Введите модель вручную"
+                  value={customModel}
+                  onChange={(e) => setCustomModel(e.target.value)}
+                  className="w-full mt-2 bg-indigo-50/50 border-2 border-indigo-100 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all animate-in zoom-in-95 duration-200"
+                />
+              )}
             </div>
 
             <div>
