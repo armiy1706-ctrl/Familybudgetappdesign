@@ -209,4 +209,40 @@ app.post('/ocr-receipt', async (c) => {
   }
 })
 
+app.post('/send-report', async (c) => {
+  try {
+    const { tgId, pdfBase64, fileName } = await c.req.json();
+    if (!tgId || !pdfBase64) return c.json({ error: 'Missing data' }, 400);
+
+    const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+    if (!botToken) return c.json({ error: 'Bot token not configured' }, 500);
+
+    // Convert base64 to Blob
+    const base64Data = pdfBase64.split(',')[1] || pdfBase64;
+    const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const blob = new Blob([binaryData], { type: 'application/pdf' });
+
+    const formData = new FormData();
+    formData.append('chat_id', tgId);
+    formData.append('document', blob, fileName || 'AutoAI_Report.pdf');
+    formData.append('caption', '📄 Ваш полный отчет об обслуживании автомобиля от AutoAI.');
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const tgData = await tgRes.json();
+    if (!tgRes.ok) {
+      console.error("Telegram API Error:", tgData);
+      return c.json({ error: 'Telegram API Error', details: tgData }, 500);
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Send Report Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+})
+
 Deno.serve(app.fetch)
