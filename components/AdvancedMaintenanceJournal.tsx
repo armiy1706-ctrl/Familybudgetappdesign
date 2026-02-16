@@ -351,16 +351,17 @@ export const AdvancedMaintenanceJournal = ({
           {activeSubTab === 'cars' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {cars.map(car => (
-                <div key={car.id} className="bg-white rounded-[40px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
-                  <div className="h-48 relative">
-                    <ImageWithFallback src={car.photoUrl} alt={car.model} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-6 left-6 text-white">
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{car.make}</p>
-                      <h4 className="text-xl font-black uppercase tracking-tighter">{car.model}</h4>
+                <div key={car.id} className="bg-white rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl transition-all group p-8 space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                      <CarIcon size={28} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">{car.make}</p>
+                      <h4 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-none">{car.model}</h4>
                     </div>
                   </div>
-                  <div className="p-8 space-y-6">
+                  <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-slate-50 rounded-2xl">
                         <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Год</p>
@@ -372,7 +373,7 @@ export const AdvancedMaintenanceJournal = ({
                       </div>
                     </div>
                     <div className="p-4 bg-slate-50 rounded-2xl">
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">VIN Номер</p>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">VIN Но��ер</p>
                       <p className="font-black text-slate-900 text-xs tracking-widest">{car.vin}</p>
                     </div>
                     <div className="flex gap-2">
