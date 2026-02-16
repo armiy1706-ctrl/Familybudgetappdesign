@@ -15,7 +15,9 @@ import {
   Gauge, 
   Zap,
   Copy,
-  Sparkles
+  Sparkles,
+  Camera,
+  Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -269,7 +271,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                 </div>
               </div>
             </div>
-            <div className="flex flex-col items-center md:items-start gap-3">
+            <div className="flex flex-col items-center md:items-start gap-3 w-full">
               <button 
                 onClick={() => onNavigate('diagnostics')}
                 className="w-full md:w-auto bg-white text-indigo-600 px-6 py-4 rounded-2xl font-bold text-sm hover:bg-indigo-50 transition-all inline-flex items-center justify-center gap-4 shadow-lg active:scale-95 group"
@@ -281,7 +283,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
               
               <button 
                 onClick={() => setShowOdometerModal(true)}
-                className="w-full md:w-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold text-[13px] transition-all flex flex-col items-center justify-center gap-0.5 border border-white/20 backdrop-blur-sm active:scale-95 group relative"
+                className="w-full md:w-auto bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold text-[13px] transition-all flex flex-col items-center justify-center gap-0.5 border border-white/20 backdrop-blur-sm active:scale-95 group relative mb-4"
               >
                 <div className="flex items-center gap-2">
                   <Gauge size={16} className="text-indigo-300" />
@@ -291,42 +293,57 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
                   НАЖМИТЕ ДЛЯ ВВОДА
                 </span>
               </button>
+
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onNavigate('diagnostics')}
+                className="w-full md:w-[400px] bg-gradient-to-br from-amber-400 to-orange-500 rounded-[32px] p-6 text-white shadow-2xl relative overflow-hidden group cursor-pointer transition-all border border-white/20"
+              >
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md border border-white/30">
+                        <Camera size={24} />
+                      </div>
+                      <h3 className="text-lg font-black leading-tight uppercase tracking-tighter">
+                        Анализ<br/>неисправности по фото
+                      </h3>
+                    </div>
+                    <div className="bg-orange-600/30 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-white/10">
+                      <Clock size={12} className="text-amber-200" />
+                      <span className="text-xs font-black text-amber-100">2</span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-white/90 text-xs font-bold leading-snug mb-5">
+                    Сфотографируйте ваш автомобиль, ИИ мгновенно диагностирует и предложит решение!
+                  </p>
+                  
+                  <div className="bg-white rounded-[20px] py-4 flex items-center justify-center gap-3 text-orange-600 font-black text-xs shadow-lg group-hover:bg-orange-50 transition-colors">
+                    <span className="text-lg">📸</span>
+                    <span>Сфотографировать или загрузить</span>
+                  </div>
+                  
+                  <div className="mt-4 flex items-center justify-center gap-2 opacity-80">
+                    <Sparkles size={12} className="text-amber-200 animate-pulse" />
+                    <span className="text-[9px] font-black uppercase tracking-[0.1em] text-white">
+                      Первое использование бесплатно!
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+              </motion.div>
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-3 w-full md:w-auto">
-            <HealthMiniCard 
-              icon={Droplets} 
-              label="Масло" 
-              status={`${getOilPercentage()}%`} 
-              subStatus={oilStatus ? `След: ${oilStatus.nextKm} км` : 'Ресурс масла'}
-              color={getOilPercentage() < 20 ? "text-rose-400" : "text-emerald-400"} 
-              onClick={() => activeCar ? setShowOilModal(true) : toast.error('Добавьте авто')}
-            />
-            <HealthMiniCard 
-              icon={Activity} 
-              label="Тормоза" 
-              status={`${getBrakePercentage()}%`} 
-              subStatus={brakeStatus ? `След: ${brakeStatus.nextKm} км` : 'Износ колодок'}
-              color={getBrakePercentage() < 20 ? "text-rose-400" : "text-amber-400"} 
-              onClick={() => activeCar ? setShowBrakeModal(true) : toast.error('Добавьте авто')}
-            />
-            <HealthMiniCard 
-              icon={Zap} 
-              label="АКБ" 
-              status={batteryResult ? (batteryResult.isOk ? "Normal" : "Warning") : "---"} 
-              subStatus={batteryResult ? `Риск: ${batteryResult.risk}` : "Оценить"}
-              color={batteryResult ? (batteryResult.isOk ? "text-emerald-400" : "text-rose-400") : "text-emerald-400"} 
-              onClick={() => setShowBatteryModal(true)}
-            />
-            <HealthMiniCard 
-              icon={Fuel} 
-              label="Расход" 
-              status={fuelConsumption > 0 ? `${fuelConsumption}л` : "--- л"} 
-              subStatus={fuelConsumption > 0 ? "л/100 км" : "Рассчитать"}
-              color="text-indigo-200" 
-              onClick={() => setShowFuelModal(true)}
-            />
+          <div className="hidden md:block relative">
+            <div className="w-64 h-64 bg-white/5 rounded-full flex items-center justify-center border border-white/10 backdrop-blur-sm shadow-2xl">
+              <Activity size={120} className="text-white opacity-20" />
+            </div>
+            <div className="absolute -top-4 -right-4 w-20 h-20 bg-emerald-500/20 rounded-full blur-2xl animate-pulse" />
+            <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-indigo-500/20 rounded-full blur-2xl animate-pulse" />
           </div>
         </div>
         
