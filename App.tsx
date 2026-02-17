@@ -190,14 +190,15 @@ export default function App() {
           pdfBase64, 
           fileName: `AutoAI_Report_${carName.replace(/\s+/g, '_')}.pdf` 
         })
-      }).then(res => {
-        if (!res.ok) throw new Error("Failed to send");
-        return res.json();
+      }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.details || data.error || "Failed to send");
+        return data;
       }),
       {
         loading: 'Отправка отчета в Telegram...',
         success: 'Отчет успешно отправлен в ваш чат с ботом!',
-        error: 'Ошибка при отправке в Telegram'
+        error: (err) => `Ошибка: ${err.message}`
       }
     );
   };
