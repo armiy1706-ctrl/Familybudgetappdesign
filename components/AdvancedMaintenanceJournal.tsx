@@ -56,8 +56,6 @@ const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; 
   service: { label: 'ТО', icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-50' }
 };
 
-const COLORS = ['#4f46e5', '#f59e0b', '#10b981', '#ef4444'];
-
 // --- Sub-Components ---
 
 const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) => (
@@ -91,7 +89,6 @@ export const AdvancedMaintenanceJournal = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // Form State
-  const [formAmount, setFormAmount] = useState<string>('');
   const [formDate, setFormDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Camera & Receipt state
@@ -189,7 +186,7 @@ export const AdvancedMaintenanceJournal = ({
   const exportArchive = async () => {
     if (!activeCar) return;
     const JSZipLib = (window as any).JSZip;
-    if (!JSZipLib) return toast.error("Загрузка...");
+    if (!JSZipLib) return toast.error("Загрузка JSZip...");
     
     try {
       const zip = new JSZipLib();
@@ -217,25 +214,26 @@ export const AdvancedMaintenanceJournal = ({
       document.body.removeChild(link);
       toast.success("ZIP архив создан");
     } catch (err) {
-      toast.error("Ошибка экспорта");
+      toast.error("Ошибка экспорта ZIP");
     }
   };
 
   const handleGeneratePdf = async (shouldSendToTelegram = false) => {
     if (!activeCar) return;
     const h2p = (window as any).html2pdf;
-    const element = document.getElementById('full-report-content');
-    if (!h2p || !element) return toast.error("Ошибка инициализации");
+    // CRITICAL: We use a separate hidden div that DOES NOT use Tailwind (oklch)
+    const element = document.getElementById('pdf-render-root');
+    if (!h2p || !element) return toast.error("Библиотека PDF не гот��ва");
 
     setIsGeneratingPdf(true);
     
-    // Low resolution settings to avoid "Too much data" / "Out of memory"
+    // Most compatible settings: scale 1, no complex CSS
     const opt = {
       margin: [10, 10, 10, 10],
-      filename: `AutoAI_Report_${activeCar.licensePlate || 'CAR'}.pdf`,
-      image: { type: 'jpeg', quality: 0.7 },
+      filename: `Report_${activeCar.licensePlate || 'CAR'}.pdf`,
+      image: { type: 'jpeg', quality: 0.8 },
       html2canvas: { 
-        scale: 1, // Standard scale is much safer for long tables
+        scale: 1, 
         useCORS: true, 
         backgroundColor: '#ffffff',
         logging: false
@@ -248,31 +246,26 @@ export const AdvancedMaintenanceJournal = ({
       try {
         const worker = h2p();
         if (shouldSendToTelegram) {
-          toast.info("Подготовка для Telegram...");
+          toast.info("Подготовка файла...");
           const pdfBlob = await worker.set(opt).from(element).outputPdf('blob');
           
           if (pdfBlob) {
-            // Check size locally
-            if (pdfBlob.size > 10 * 1024 * 1024) {
-              throw new Error("Файл слишком велик для отправки через бота. Используйте экспорт в ZIP.");
-            }
-
             const reader = new FileReader();
             reader.onloadend = () => {
-              onSendToTelegram?.(reader.result as string, `${activeCar.make} ${activeCar.model}`);
+              onSendToTelegram?.(reader.result as string, `${activeCar.make}_${activeCar.model}`);
               setIsGeneratingPdf(false);
             };
             reader.readAsDataURL(pdfBlob);
           }
         } else {
           await worker.set(opt).from(element).save();
-          toast.success("PDF сохранен");
+          toast.success("Файл сохранен");
           setIsGeneratingPdf(false);
         }
       } catch (err: any) {
         console.error("PDF ERROR:", err);
         setIsGeneratingPdf(false);
-        toast.error(err.message || "Ошибка PDF. Слишком много данных.");
+        toast.error("Ошибка PDF. Попробуйте еще раз.");
       }
     }, 600);
   };
@@ -434,6 +427,7 @@ export const AdvancedMaintenanceJournal = ({
         )}
       </AnimatePresence>
 
+      {/* Photo Viewer */}
       <AnimatePresence>
         {isPhotoViewOpen && selectedReceipt && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -446,7 +440,7 @@ export const AdvancedMaintenanceJournal = ({
         )}
       </AnimatePresence>
 
-      {/* PDF Preview Modal */}
+      {/* PDF Generation UI - NO TAILWIND COLORS HERE */}
       <AnimatePresence>
         {showPdfPreview && activeCar && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -455,69 +449,77 @@ export const AdvancedMaintenanceJournal = ({
               <div className="px-10 py-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><FileText size={24} /></div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Печать отчета</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Текстовая выписка</p>
-                  </div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Печать отчета</h3>
                 </div>
                 <button onClick={() => setShowPdfPreview(false)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900"><X size={24} /></button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-10 bg-slate-200/50">
-                {/* Simplified Text-Only Report Content */}
-                <div id="full-report-content" style={{ backgroundColor: '#ffffff', color: '#0f172a', padding: '30px', margin: '0 auto', width: '190mm', fontFamily: 'sans-serif', boxSizing: 'border-box' }}>
-                  <div style={{ borderBottom: '3px solid #4f46e5', paddingBottom: '15px', marginBottom: '25px' }}>
-                    <h1 style={{ fontSize: '22px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>AutoAI: Журнал ТО</h1>
-                    <p style={{ color: '#64748b', fontSize: '9px', fontWeight: 'bold', margin: '4px 0 0 0' }}>ОТЧЕТ О ТЕХНИЧЕСКОМ ОБСЛУЖИВАНИИ</p>
+                {/* 
+                   CRITICAL: This div uses ONLY standard HEX/RGB colors. 
+                   html2canvas fails on Tailwind v4 'oklch' colors.
+                */}
+                <div id="pdf-render-root" style={{ 
+                  backgroundColor: '#ffffff', 
+                  color: '#1a1a1a', 
+                  padding: '40px', 
+                  margin: '0 auto', 
+                  width: '185mm', 
+                  fontFamily: 'Arial, sans-serif', 
+                  boxSizing: 'border-box' 
+                }}>
+                  <div style={{ borderBottom: '4px solid #4f46e5', paddingBottom: '20px', marginBottom: '30px' }}>
+                    <h1 style={{ fontSize: '24px', fontWeight: 'bold', textTransform: 'uppercase', margin: 0, color: '#000000' }}>AutoAI: Журнал обслуживания</h1>
+                    <p style={{ color: '#666666', fontSize: '11px', margin: '5px 0 0 0' }}>Технический отчет о расходах</p>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                      <p style={{ fontSize: '8px', fontWeight: '900', color: '#4f46e5', textTransform: 'uppercase', margin: '0 0 4px 0' }}>Данные ТС</p>
-                      <h2 style={{ fontSize: '16px', fontWeight: '900', margin: 0 }}>{activeCar.make} {activeCar.model}</h2>
-                      <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b', margin: '4px 0 0 0' }}>Номер: {activeCar.licensePlate}</p>
-                      <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0 0' }}>VIN: {activeCar.vin || '—'}</p>
+                  <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
+                    <div style={{ flex: 1, backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '15px' }}>
+                      <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#4f46e5', textTransform: 'uppercase', margin: '0 0 5px 0' }}>Автомобиль</p>
+                      <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#000000' }}>{activeCar.make} {activeCar.model}</h2>
+                      <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#333333', margin: '5px 0 0 0' }}>Гос. номер: {activeCar.licensePlate}</p>
+                      <p style={{ fontSize: '11px', color: '#666666', margin: '2px 0 0 0' }}>VIN: {activeCar.vin || 'не указан'}</p>
                     </div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'right' }}>
-                      <p style={{ fontSize: '8px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', margin: '0 0 4px 0' }}>Итоговые затраты</p>
-                      <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{stats.total.toLocaleString()} ₽</h2>
-                      <p style={{ fontSize: '9px', fontWeight: 'bold', color: '#94a3b8', margin: '4px 0 0 0' }}>Дата отчета: {new Date().toLocaleDateString('ru-RU')}</p>
+                    <div style={{ flex: 1, backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '15px', textAlign: 'right' }}>
+                      <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#666666', textTransform: 'uppercase', margin: '0 0 5px 0' }}>Итоговая сумма</p>
+                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#4f46e5', margin: 0 }}>{stats.total.toLocaleString()} ₽</h2>
+                      <p style={{ fontSize: '11px', color: '#999999', margin: '5px 0 0 0' }}>Дата: {new Date().toLocaleDateString('ru-RU')}</p>
                     </div>
                   </div>
 
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #eeeeee' }}>
                     <thead>
-                      <tr style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
-                        <th style={{ padding: '10px', fontSize: '9px', fontWeight: '900', textAlign: 'left' }}>ДАТА</th>
-                        <th style={{ padding: '10px', fontSize: '9px', fontWeight: '900', textAlign: 'left' }}>КАТЕГОРИЯ</th>
-                        <th style={{ padding: '10px', fontSize: '9px', fontWeight: '900', textAlign: 'left' }}>ОПИСАНИЕ</th>
-                        <th style={{ padding: '10px', fontSize: '9px', fontWeight: '900', textAlign: 'right' }}>СУММА</th>
+                      <tr style={{ backgroundColor: '#f8f8f8' }}>
+                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: '2px solid #dddddd' }}>ДАТА</th>
+                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: '2px solid #dddddd' }}>ТИП</th>
+                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: '2px solid #dddddd' }}>ОПИСАНИЕ</th>
+                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'right', borderBottom: '2px solid #dddddd' }}>СУММА</th>
                       </tr>
                     </thead>
                     <tbody>
                       {carRecords.map((r) => (
-                        <tr key={r.id} style={{ borderBottom: '1px solid #e2e8f0', pageBreakInside: 'avoid' }}>
-                          <td style={{ padding: '10px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
-                          <td style={{ padding: '10px', fontSize: '9px', textTransform: 'uppercase', color: '#64748b' }}>{CATEGORIES[r.type].label}</td>
-                          <td style={{ padding: '10px', fontSize: '10px', fontWeight: 'bold', wordWrap: 'break-word', maxWidth: '80mm' }}>{r.description}</td>
-                          <td style={{ padding: '10px', fontSize: '10px', fontWeight: '900', textAlign: 'right', color: '#4f46e5' }}>{r.amount.toLocaleString()} ₽</td>
+                        <tr key={r.id} style={{ borderBottom: '1px solid #eeeeee' }}>
+                          <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold' }}>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
+                          <td style={{ padding: '12px', fontSize: '10px', textTransform: 'uppercase', color: '#666666' }}>{CATEGORIES[r.type].label}</td>
+                          <td style={{ padding: '12px', fontSize: '11px', wordBreak: 'break-word', maxWidth: '80mm' }}>{r.description}</td>
+                          <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'right', color: '#4f46e5' }}>{r.amount.toLocaleString()} ₽</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
 
-                  <div style={{ marginTop: '30px', padding: '15px', border: '1px solid #f1f5f9', borderRadius: '12px', textAlign: 'center' }}>
-                    <p style={{ fontSize: '9px', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>Документы и фото доступны в ZIP архиве приложения AutoAI.</p>
+                  <div style={{ marginTop: '50px', borderTop: '1px dashed #cccccc', paddingTop: '20px', textAlign: 'center' }}>
+                    <p style={{ fontSize: '10px', color: '#999999', margin: 0 }}>Сгенерировано автоматически в приложении AutoAI. Фотографии чеков доступны в ZIP-архиве.</p>
                   </div>
                 </div>
               </div>
 
               <div className="px-10 py-8 bg-white border-t border-slate-100 flex gap-4">
                 <button onClick={() => handleGeneratePdf(false)} disabled={isGeneratingPdf} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />} PDF
+                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />} Скачать PDF
                 </button>
                 <button onClick={() => handleGeneratePdf(true)} disabled={isGeneratingPdf} className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />} В Telegram
+                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />} Отправить в бот
                 </button>
               </div>
             </motion.div>
