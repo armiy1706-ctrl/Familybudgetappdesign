@@ -328,9 +328,19 @@ export const AdvancedMaintenanceJournal = ({
 
     try {
       if (shouldSendToTelegram) {
-        const worker = h2p().set(opt).from(element).toPdf().outputPdf('datauristring');
-        worker.then((dataUri: string) => {
-          onSendToTelegram?.(dataUri, `${activeCar.make} ${activeCar.model}`);
+        // Use a more direct approach for html2pdf
+        const pdfWorker = h2p().set(opt).from(element).outputPdf('datauristring');
+        
+        pdfWorker.then((dataUri: string) => {
+          if (dataUri) {
+            onSendToTelegram?.(dataUri, `${activeCar.make} ${activeCar.model}`);
+          } else {
+            toast.error("Не удалось сгенерировать PDF данные");
+          }
+          setIsGeneratingPdf(false);
+        }).catch((err: any) => {
+          console.error("Worker error:", err);
+          toast.error("Ошибка воркера PDF");
           setIsGeneratingPdf(false);
         });
       } else {
