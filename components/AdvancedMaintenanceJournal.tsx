@@ -1,37 +1,25 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  LayoutDashboard, 
   Car as CarIcon, 
   Wrench, 
   History, 
   Plus, 
-  Filter,
   Download,
   Trash2,
-  TrendingUp,
   DollarSign,
   Fuel,
   Cog,
   Shield,
-  ChevronRight,
-  ChevronDown,
   X,
-  PlusCircle,
   FileText,
-  PieChart as PieIcon,
   Search,
   Camera,
-  Eye,
-  Image as ImageIcon,
+  ImageIcon,
   Loader2,
   Archive,
   Send
 } from 'lucide-react';
-import { 
-  AreaChart, Area, PieChart, Pie, Cell, 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
-} from 'recharts';
 import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
 
@@ -55,8 +43,6 @@ const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; 
   fuel: { label: 'Топливо', icon: Fuel, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
   service: { label: 'ТО', icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-50' }
 };
-
-// --- Sub-Components ---
 
 const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) => (
   <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
@@ -83,21 +69,15 @@ export const AdvancedMaintenanceJournal = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // PDF State
-  const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  
-  // Form State
   const [formDate, setFormDate] = useState<string>(new Date().toISOString().split('T')[0]);
-
-  // Camera & Receipt state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [tempReceiptImage, setTempReceiptImage] = useState<string | null>(null);
   const [isPhotoViewOpen, setIsPhotoViewOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
 
   useEffect(() => {
+    // Load external scripts if not present
     if (!(window as any).JSZip) {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
@@ -112,15 +92,12 @@ export const AdvancedMaintenanceJournal = ({
     }
   }, []);
 
-  // Persistence
   useEffect(() => {
     const saved = localStorage.getItem('autoai_maintenance_records');
     if (saved) {
       try {
         setRecords(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load records", e);
-      }
+      } catch (e) { console.error(e); }
     }
   }, []);
 
@@ -128,7 +105,6 @@ export const AdvancedMaintenanceJournal = ({
     localStorage.setItem('autoai_maintenance_records', JSON.stringify(records));
   }, [records]);
 
-  // Ensure active car
   useEffect(() => {
     if (cars.length > 0 && !activeCarId) {
       setActiveCarId(cars[0].id);
@@ -159,7 +135,6 @@ export const AdvancedMaintenanceJournal = ({
   const handleAddRecord = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!activeCarId) return;
-
     const formData = new FormData(e.currentTarget);
     const newRecord: MaintenanceRecord = {
       id: Date.now().toString(),
@@ -170,7 +145,6 @@ export const AdvancedMaintenanceJournal = ({
       amount: Number(formData.get('amount')),
       receiptImage: tempReceiptImage || undefined
     };
-
     setRecords(prev => [...prev, newRecord]);
     setShowAddModal(false);
     setTempReceiptImage(null);
@@ -178,7 +152,7 @@ export const AdvancedMaintenanceJournal = ({
   };
 
   const deleteRecord = (id: string) => {
-    if (!window.confirm("Удалить эту запись?")) return;
+    if (!window.confirm("Удалить запись?")) return;
     setRecords(prev => prev.filter(r => r.id !== id));
     toast.success('Запись удалена');
   };
@@ -186,103 +160,139 @@ export const AdvancedMaintenanceJournal = ({
   const exportArchive = async () => {
     if (!activeCar) return;
     const JSZipLib = (window as any).JSZip;
-    if (!JSZipLib) return toast.error("Загрузка JSZip...");
-    
+    if (!JSZipLib) return toast.error("Библиотека ZIP загружается...");
     try {
       const zip = new JSZipLib();
-      const headers = ['Дата', 'Тип', 'Описание', 'Сумма (₽)'];
-      const rows = carRecords.map(r => [r.date, CATEGORIES[r.type].label, r.description, r.amount]);
-      const csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
-      zip.file(`ТО_${activeCar.make}_${activeCar.model}.csv`, csvContent);
-      
-      const imgFolder = zip.folder("receipts");
-      if (imgFolder) {
-        carRecords.forEach(record => {
-          if (record.receiptImage) {
-            const base64Data = record.receiptImage.split(',')[1];
-            if (base64Data) imgFolder.file(`receipt_${record.id}.png`, base64Data, { base64: true });
-          }
-        });
-      }
-      
+      const csvContent = "\uFEFFДата,Тип,Описание,Сумма\n" + 
+        carRecords.map(r => `${r.date},${CATEGORIES[r.type].label},${r.description},${r.amount}`).join("\n");
+      zip.file(`Report_${activeCar.licensePlate}.csv`, csvContent);
+      const imgFolder = zip.folder("images");
+      carRecords.forEach(r => {
+        if (r.receiptImage) {
+          const base64 = r.receiptImage.split(',')[1];
+          if (base64) imgFolder.file(`${r.id}.png`, base64, { base64: true });
+        }
+      });
       const content = await zip.generateAsync({ type: "blob" });
-      const url = window.URL.createObjectURL(content);
-      const link = document.body.appendChild(document.createElement("a"));
+      const url = URL.createObjectURL(content);
+      const link = document.createElement("a");
       link.href = url;
-      link.download = `AutoAI_Export_${activeCar.licensePlate || 'Car'}.zip`;
+      link.download = `AutoAI_${activeCar.licensePlate}.zip`;
       link.click();
-      document.body.removeChild(link);
       toast.success("ZIP архив создан");
-    } catch (err) {
-      toast.error("Ошибка экспорта ZIP");
-    }
+    } catch (err) { toast.error("Ошибка ZIP"); }
   };
 
-  const handleGeneratePdf = async (shouldSendToTelegram = false) => {
+  // PURE HTML PDF GENERATION TO AVOID OKLCH CONFLICTS
+  const handleGeneratePdf = async (toTelegram = false) => {
     if (!activeCar) return;
     const h2p = (window as any).html2pdf;
-    // CRITICAL: We use a separate hidden div that DOES NOT use Tailwind (oklch)
-    const element = document.getElementById('pdf-render-root');
-    if (!h2p || !element) return toast.error("Библиотека PDF не гот��ва");
+    if (!h2p) return toast.error("Библиотека PDF загружается...");
 
     setIsGeneratingPdf(true);
     
-    // Most compatible settings: scale 1, no complex CSS
+    // Create a standalone HTML string for the PDF. 
+    // This bypasses the app's DOM and its Tailwind v4 (oklch) styles.
+    const tableRows = carRecords.map(r => `
+      <tr style="border-bottom: 1px solid #eeeeee;">
+        <td style="padding: 10px; font-size: 11px;">${new Date(r.date).toLocaleDateString('ru-RU')}</td>
+        <td style="padding: 10px; font-size: 10px; text-transform: uppercase; color: #666;">${CATEGORIES[r.type].label}</td>
+        <td style="padding: 10px; font-size: 11px; word-break: break-all;">${r.description}</td>
+        <td style="padding: 10px; font-size: 11px; font-weight: bold; text-align: right;">${r.amount.toLocaleString()} ₽</td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; padding: 40px; width: 180mm; margin: 0 auto; background: white;">
+        <div style="border-bottom: 4px solid #4f46e5; padding-bottom: 15px; margin-bottom: 25px;">
+          <h1 style="margin: 0; font-size: 24px; color: #000; text-transform: uppercase;">AutoAI: Отчет</h1>
+          <p style="margin: 5px 0 0; font-size: 11px; color: #666;">ЖУРНАЛ ТЕХНИЧЕСКОГО ОБСЛУЖИВАНИЯ</p>
+        </div>
+        <div style="display: flex; margin-bottom: 30px;">
+          <div style="flex: 1; background: #f9f9f9; padding: 15px; border-radius: 10px; margin-right: 10px;">
+            <p style="margin: 0 0 5px; font-size: 9px; font-weight: bold; color: #4f46e5;">АВТОМОБИЛЬ</p>
+            <p style="margin: 0; font-size: 16px; font-weight: bold;">${activeCar.make} ${activeCar.model}</p>
+            <p style="margin: 5px 0 0; font-size: 12px;">Гос. номер: <b>${activeCar.licensePlate}</b></p>
+            <p style="margin: 2px 0 0; font-size: 10px; color: #666;">VIN: ${activeCar.vin || '—'}</p>
+          </div>
+          <div style="flex: 1; background: #f9f9f9; padding: 15px; border-radius: 10px; text-align: right;">
+            <p style="margin: 0 0 5px; font-size: 9px; font-weight: bold; color: #666;">ИТОГО ЗАТРАТ</p>
+            <p style="margin: 0; font-size: 20px; font-weight: bold; color: #000;">${stats.total.toLocaleString()} ₽</p>
+            <p style="margin: 5px 0 0; font-size: 10px; color: #999;">Сформировано: ${new Date().toLocaleDateString('ru-RU')}</p>
+          </div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f1f1f1;">
+              <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: bold; border-bottom: 1px solid #ccc;">ДАТА</th>
+              <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: bold; border-bottom: 1px solid #ccc;">ТИП</th>
+              <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: bold; border-bottom: 1px solid #ccc;">ОПИСАНИЕ</th>
+              <th style="padding: 10px; text-align: right; font-size: 10px; font-weight: bold; border-bottom: 1px solid #ccc;">СУММА</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+        <div style="margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 15px; text-align: center;">
+          <p style="margin: 0; font-size: 9px; color: #999; font-style: italic;">Отчет создан автоматически в приложении AutoAI. Фотографии чеков доступны в архиве ZIP.</p>
+        </div>
+      </div>
+    `;
+
     const opt = {
-      margin: [10, 10, 10, 10],
-      filename: `Report_${activeCar.licensePlate || 'CAR'}.pdf`,
+      margin: 10,
+      filename: `Report_${activeCar.licensePlate}.pdf`,
       image: { type: 'jpeg', quality: 0.8 },
-      html2canvas: { 
-        scale: 1, 
-        useCORS: true, 
-        backgroundColor: '#ffffff',
-        logging: false
-      },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
+      html2canvas: { scale: 1, useCORS: true, logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    setTimeout(async () => {
-      try {
-        const worker = h2p();
-        if (shouldSendToTelegram) {
-          toast.info("Подготовка файла...");
-          const pdfBlob = await worker.set(opt).from(element).outputPdf('blob');
-          
-          if (pdfBlob) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              onSendToTelegram?.(reader.result as string, `${activeCar.make}_${activeCar.model}`);
-              setIsGeneratingPdf(false);
-            };
-            reader.readAsDataURL(pdfBlob);
-          }
-        } else {
-          await worker.set(opt).from(element).save();
-          toast.success("Файл сохранен");
+    try {
+      if (toTelegram) {
+        toast.info("Подготовка для Telegram...");
+        // Important: use .from(htmlContent) NOT a DOM element
+        const blob = await h2p().set(opt).from(htmlContent).output('blob');
+        const reader = new FileReader();
+        reader.onload = () => {
+          onSendToTelegram?.(reader.result as string, `${activeCar.make}_${activeCar.model}`);
           setIsGeneratingPdf(false);
-        }
-      } catch (err: any) {
-        console.error("PDF ERROR:", err);
+        };
+        reader.onerror = () => { throw new Error("File error"); };
+        reader.readAsDataURL(blob);
+      } else {
+        await h2p().set(opt).from(htmlContent).save();
         setIsGeneratingPdf(false);
-        toast.error("Ошибка PDF. Попробуйте еще раз.");
+        toast.success("PDF сохранен");
       }
-    }, 600);
+    } catch (err) {
+      console.error(err);
+      toast.error("Ошибка PDF. Попробуйте еще раз.");
+      setIsGeneratingPdf(false);
+    }
   };
 
-  if (cars.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 text-center px-10">
-        <CarIcon size={40} className="text-slate-300 mb-6" />
-        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">Парк пуст</h3>
-        <p className="text-sm text-slate-400 font-medium">Добавьте автомобиль в профиле.</p>
-      </div>
-    );
-  }
+  if (cars.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 text-center px-10">
+      <CarIcon size={40} className="text-slate-300 mb-6" />
+      <h3 className="text-xl font-black text-slate-900 mb-2 uppercase">Парк пуст</h3>
+      <p className="text-sm text-slate-400 font-medium">Добавьте автомобиль в профиле.</p>
+    </div>
+  );
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-24">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-24 relative">
       <CameraCapture isOpen={isCameraOpen} onClose={() => setIsCameraOpen(false)} onCapture={(img) => { setTempReceiptImage(img); setIsCameraOpen(false); }} />
+      
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {isGeneratingPdf && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-white p-8 rounded-[32px] shadow-2xl flex flex-col items-center gap-4">
+              <Loader2 className="animate-spin text-indigo-600" size={40} />
+              <p className="text-sm font-black uppercase tracking-widest text-slate-900">Создание PDF...</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {cars.map(car => (
@@ -307,8 +317,9 @@ export const AdvancedMaintenanceJournal = ({
               <p className="text-slate-400 font-medium text-sm mt-1">VIN: {activeCar.vin || '—'}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              <button onClick={() => setShowPdfPreview(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm"><FileText size={14} /> Отчет PDF</button>
-              <button onClick={exportArchive} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm"><Archive size={14} /> ZIP Архив</button>
+              <button onClick={() => handleGeneratePdf(false)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm"><FileText size={14} /> Скачать PDF</button>
+              <button onClick={() => handleGeneratePdf(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm"><Send size={14} /> В Telegram</button>
+              <button onClick={exportArchive} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm"><Archive size={14} /> ZIP</button>
               <button onClick={() => setShowAddModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100"><Plus size={16} /> Новая запись</button>
             </div>
           </div>
@@ -407,7 +418,7 @@ export const AdvancedMaintenanceJournal = ({
                   <input name="amount" type="number" required className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none" placeholder="0" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Прикрепить фото (для ZIP архива)</label>
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Прикрепить фото (для ZIP)</label>
                   {tempReceiptImage ? (
                     <div className="relative rounded-2xl overflow-hidden aspect-video border border-slate-100">
                       <img src={tempReceiptImage} alt="Preview" className="w-full h-full object-cover" />
@@ -427,7 +438,6 @@ export const AdvancedMaintenanceJournal = ({
         )}
       </AnimatePresence>
 
-      {/* Photo Viewer */}
       <AnimatePresence>
         {isPhotoViewOpen && selectedReceipt && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -435,93 +445,6 @@ export const AdvancedMaintenanceJournal = ({
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative z-10 max-w-2xl w-full">
               <button onClick={() => setIsPhotoViewOpen(false)} className="absolute -top-12 right-0 text-white"><X size={32} /></button>
               <img src={selectedReceipt} alt="Receipt" className="w-full h-auto rounded-3xl shadow-2xl" />
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* PDF Generation UI - NO TAILWIND COLORS HERE */}
-      <AnimatePresence>
-        {showPdfPreview && activeCar && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPdfPreview(false)} className="absolute inset-0 bg-slate-900/80 backdrop-blur-lg" />
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }} className="bg-white rounded-[40px] w-full max-w-4xl p-0 shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden">
-              <div className="px-10 py-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><FileText size={24} /></div>
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Печать отчета</h3>
-                </div>
-                <button onClick={() => setShowPdfPreview(false)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900"><X size={24} /></button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-10 bg-slate-200/50">
-                {/* 
-                   CRITICAL: This div uses ONLY standard HEX/RGB colors. 
-                   html2canvas fails on Tailwind v4 'oklch' colors.
-                */}
-                <div id="pdf-render-root" style={{ 
-                  backgroundColor: '#ffffff', 
-                  color: '#1a1a1a', 
-                  padding: '40px', 
-                  margin: '0 auto', 
-                  width: '185mm', 
-                  fontFamily: 'Arial, sans-serif', 
-                  boxSizing: 'border-box' 
-                }}>
-                  <div style={{ borderBottom: '4px solid #4f46e5', paddingBottom: '20px', marginBottom: '30px' }}>
-                    <h1 style={{ fontSize: '24px', fontWeight: 'bold', textTransform: 'uppercase', margin: 0, color: '#000000' }}>AutoAI: Журнал обслуживания</h1>
-                    <p style={{ color: '#666666', fontSize: '11px', margin: '5px 0 0 0' }}>Технический отчет о расходах</p>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
-                    <div style={{ flex: 1, backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '15px' }}>
-                      <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#4f46e5', textTransform: 'uppercase', margin: '0 0 5px 0' }}>Автомобиль</p>
-                      <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#000000' }}>{activeCar.make} {activeCar.model}</h2>
-                      <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#333333', margin: '5px 0 0 0' }}>Гос. номер: {activeCar.licensePlate}</p>
-                      <p style={{ fontSize: '11px', color: '#666666', margin: '2px 0 0 0' }}>VIN: {activeCar.vin || 'не указан'}</p>
-                    </div>
-                    <div style={{ flex: 1, backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '15px', textAlign: 'right' }}>
-                      <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#666666', textTransform: 'uppercase', margin: '0 0 5px 0' }}>Итоговая сумма</p>
-                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#4f46e5', margin: 0 }}>{stats.total.toLocaleString()} ₽</h2>
-                      <p style={{ fontSize: '11px', color: '#999999', margin: '5px 0 0 0' }}>Дата: {new Date().toLocaleDateString('ru-RU')}</p>
-                    </div>
-                  </div>
-
-                  <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #eeeeee' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f8f8f8' }}>
-                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: '2px solid #dddddd' }}>ДАТА</th>
-                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: '2px solid #dddddd' }}>ТИП</th>
-                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: '2px solid #dddddd' }}>ОПИСАНИЕ</th>
-                        <th style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'right', borderBottom: '2px solid #dddddd' }}>СУММА</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {carRecords.map((r) => (
-                        <tr key={r.id} style={{ borderBottom: '1px solid #eeeeee' }}>
-                          <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold' }}>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
-                          <td style={{ padding: '12px', fontSize: '10px', textTransform: 'uppercase', color: '#666666' }}>{CATEGORIES[r.type].label}</td>
-                          <td style={{ padding: '12px', fontSize: '11px', wordBreak: 'break-word', maxWidth: '80mm' }}>{r.description}</td>
-                          <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', textAlign: 'right', color: '#4f46e5' }}>{r.amount.toLocaleString()} ₽</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div style={{ marginTop: '50px', borderTop: '1px dashed #cccccc', paddingTop: '20px', textAlign: 'center' }}>
-                    <p style={{ fontSize: '10px', color: '#999999', margin: 0 }}>Сгенерировано автоматически в приложении AutoAI. Фотографии чеков доступны в ZIP-архиве.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-10 py-8 bg-white border-t border-slate-100 flex gap-4">
-                <button onClick={() => handleGeneratePdf(false)} disabled={isGeneratingPdf} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />} Скачать PDF
-                </button>
-                <button onClick={() => handleGeneratePdf(true)} disabled={isGeneratingPdf} className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />} Отправить в бот
-                </button>
-              </div>
             </motion.div>
           </div>
         )}
