@@ -766,78 +766,84 @@ export const AdvancedMaintenanceJournal = ({
               </div>
 
               <div className="flex-1 overflow-y-auto p-10 bg-slate-200/50">
-                {/* The actual element to be turned into PDF */}
-                <div id="full-report-content" className="bg-white p-12 shadow-xl mx-auto max-w-[210mm] min-h-[297mm] text-[#0f172a] font-sans">
+                {/* The actual element to be turned into PDF - Using ONLY HEX styles to avoid html2canvas OKLCH errors */}
+                <div 
+                  id="full-report-content" 
+                  style={{ 
+                    backgroundColor: '#ffffff', 
+                    color: '#0f172a', 
+                    padding: '48px', 
+                    margin: '0 auto', 
+                    maxWidth: '210mm', 
+                    minHeight: '297mm',
+                    fontFamily: 'sans-serif'
+                  }}
+                  className="shadow-xl"
+                >
                   {/* Report Header */}
-                  <div className="flex justify-between items-start border-b-4 border-[#4f46e5] pb-8 mb-10">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '4px solid #4f46e5', paddingBottom: '32px', marginBottom: '40px' }}>
                     <div>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-[#4f46e5] rounded-xl flex items-center justify-center text-white">
-                          <TrendingUp size={24} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                        <div style={{ width: '40px', height: '40px', backgroundColor: '#4f46e5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyCenter: 'center', color: '#ffffff' }}>
+                          <TrendingUp size={24} style={{ margin: 'auto' }} />
                         </div>
-                        <h1 className="text-3xl font-black tracking-tighter uppercase italic text-[#0f172a]">AutoAI Report</h1>
+                        <h1 style={{ fontSize: '30px', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>AutoAI Report</h1>
                       </div>
-                      <p className="text-[#94a3b8] text-xs font-bold uppercase tracking-widest leading-none">Smart Automotive Intelligence Systems</p>
+                      <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Smart Automotive Intelligence Systems</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black uppercase text-[#94a3b8] tracking-widest mb-1">Дата формирования</p>
-                      <p className="text-sm font-bold text-[#0f172a]">{new Date().toLocaleDateString('ru-RU')}</p>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>Дата формирования</p>
+                      <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>{new Date().toLocaleDateString('ru-RU')}</p>
                     </div>
                   </div>
 
                   {/* Car Identity */}
-                  <div className="grid grid-cols-2 gap-8 mb-10">
-                    <div className="bg-[#f8fafc] p-6 rounded-3xl border border-[#f1f5f9]">
-                      <p className="text-[10px] font-black uppercase text-[#4f46e5] tracking-widest mb-2">Автомобиль</p>
-                      <h2 className="text-2xl font-black text-[#0f172a]">{(activeCar as any).make} {(activeCar as any).model}</h2>
-                      <p className="text-sm font-bold text-[#64748b] mt-1">{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '40px' }}>
+                    <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
+                      <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '8px', margin: 0 }}>Автомобиль</p>
+                      <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{(activeCar as any).make} {(activeCar as any).model}</h2>
+                      <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#64748b', marginTop: '4px', margin: 0 }}>{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
                     </div>
-                    <div className="bg-[#f8fafc] p-6 rounded-3xl border border-[#f1f5f9]">
-                      <p className="text-[10px] font-black uppercase text-[#4f46e5] tracking-widest mb-2">Идентификация</p>
-                      <p className="text-lg font-black text-[#0f172a] uppercase tracking-tight">{(activeCar as any).plate || 'БЕЗ НОМЕРА'}</p>
-                      <p className="text-xs font-bold text-[#94a3b8] mt-1 font-mono break-all">{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
+                    <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
+                      <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '8px', margin: 0 }}>Идентификация</p>
+                      <p style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '-0.025em', margin: 0 }}>{(activeCar as any).plate || 'БЕЗ НОМЕРА'}</p>
+                      <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#94a3b8', marginTop: '4px', fontFamily: 'monospace', wordBreak: 'break-all', margin: 0 }}>{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
                     </div>
                   </div>
 
                   {/* Stats Summary */}
-                  <div className="grid grid-cols-4 gap-4 mb-10">
-                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl bg-[#f5f3ff]">
-                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Общие затраты</p>
-                      <p className="text-lg font-black text-[#4f46e5]">{(stats.total || 0).toLocaleString()} ₽</p>
-                    </div>
-                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl">
-                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Записей</p>
-                      <p className="text-lg font-black text-[#0f172a]">{carRecords.length}</p>
-                    </div>
-                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl">
-                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Пробег</p>
-                      <p className="text-lg font-black text-[#0f172a]">{((activeCar as any).mileage || 0).toLocaleString()} км</p>
-                    </div>
-                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl">
-                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">ТО / Сервис</p>
-                      <p className="text-lg font-black text-[#10b981]">{(stats.byType.service || 0).toLocaleString()} ₽</p>
-                    </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '40px' }}>
+                    {[
+                      { label: 'Общие затраты', value: `${(stats.total || 0).toLocaleString()} ₽`, color: '#4f46e5', bg: '#f5f3ff' },
+                      { label: 'Записей', value: carRecords.length, color: '#0f172a', bg: '#ffffff' },
+                      { label: 'Пробег', value: `${((activeCar as any).mileage || 0).toLocaleString()} км`, color: '#0f172a', bg: '#ffffff' },
+                      { label: 'ТО / Сервис', value: `${(stats.byType.service || 0).toLocaleString()} ₽`, color: '#10b981', bg: '#ffffff' }
+                    ].map((stat, idx) => (
+                      <div key={idx} style={{ textAlign: 'center', padding: '16px', border: '1px solid #f1f5f9', borderRadius: '16px', backgroundColor: stat.bg }}>
+                        <p style={{ fontSize: '9px', fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>{stat.label}</p>
+                        <p style={{ fontSize: '18px', fontWeight: '900', color: stat.color, margin: 0 }}>{stat.value}</p>
+                      </div>
+                    ))}
                   </div>
 
                   {/* Main History Table */}
-                  <div className="mb-12">
-                    <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <div className="w-1.5 h-4 bg-[#4f46e5] rounded-full" />
+                  <div style={{ marginBottom: '48px' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '6px', height: '16px', backgroundColor: '#4f46e5', borderRadius: '999px' }} />
                       Подробная история операций
                     </h3>
-                    <table className="w-full text-left border-collapse">
+                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                       <thead>
-                        <tr className="bg-[#0f172a] text-white">
-                          <th className="p-4 text-[10px] font-black uppercase tracking-widest rounded-tl-xl">Дата</th>
-                          <th className="p-4 text-[10px] font-black uppercase tracking-widest">Категория</th>
-                          <th className="p-4 text-[10px] font-black uppercase tracking-widest">Описание выполненных работ</th>
-                          <th className="p-4 text-[10px] font-black uppercase tracking-widest text-right rounded-tr-xl">Сумма</th>
+                        <tr style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', borderTopLeftRadius: '12px' }}>Дата</th>
+                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Категория</th>
+                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Описание работ</th>
+                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'right', borderTopRightRadius: '12px' }}>Сумма</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#f1f5f9]">
+                      <tbody>
                         {carRecords.length > 0 ? carRecords.map((r, i) => {
                           const cat = CATEGORIES[r.type] || CATEGORIES.service;
-                          // Standard HEX colors for PDF to avoid OKLCH issues with html2canvas
                           const pdfColors: any = {
                             repair: { text: '#e11d48', bg: '#fff1f2' },
                             parts: { text: '#d97706', bg: '#fffbeb' },
@@ -847,20 +853,20 @@ export const AdvancedMaintenanceJournal = ({
                           const pColor = pdfColors[r.type] || pdfColors.service;
                           
                           return (
-                            <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                              <td className="p-4 text-xs font-bold text-[#64748b] whitespace-nowrap">{r.date}</td>
-                              <td className="p-4">
-                                <span style={{ color: pColor.text, backgroundColor: pColor.bg }} className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded">
+                            <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '16px', fontSize: '12px', fontWeight: 'bold', color: '#64748b', whiteSpace: 'nowrap' }}>{r.date}</td>
+                              <td style={{ padding: '16px' }}>
+                                <span style={{ color: pColor.text, backgroundColor: pColor.bg, fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 8px', borderRadius: '4px' }}>
                                   {cat.label}
                                 </span>
                               </td>
-                              <td className="p-4 text-xs font-bold text-[#0f172a] leading-relaxed">{r.description}</td>
-                              <td className="p-4 text-xs font-black text-[#0f172a] text-right whitespace-nowrap">{(r.amount || 0).toLocaleString()} ₽</td>
+                              <td style={{ padding: '16px', fontSize: '12px', fontWeight: 'bold', color: '#0f172a', lineHeight: '1.5' }}>{r.description}</td>
+                              <td style={{ padding: '16px', fontSize: '12px', fontWeight: '900', color: '#0f172a', textAlign: 'right', whiteSpace: 'nowrap' }}>{(r.amount || 0).toLocaleString()} ₽</td>
                             </tr>
                           );
                         }) : (
                           <tr>
-                            <td colSpan={4} className="p-10 text-center text-[#94a3b8] italic text-xs">Записи отсутствуют</td>
+                            <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '12px' }}>Записи отсутствуют</td>
                           </tr>
                         )}
                       </tbody>
@@ -868,13 +874,13 @@ export const AdvancedMaintenanceJournal = ({
                   </div>
 
                   {/* Report Footer */}
-                  <div className="mt-auto pt-10 border-t border-[#f1f5f9]">
-                    <div className="flex justify-between items-center opacity-50">
-                      <div className="flex items-center gap-2">
+                  <div style={{ marginTop: 'auto', paddingTop: '40px', borderTop: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.5 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <TrendingUp size={16} color="#4f46e5" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-[#0f172a]">Generated by AutoAI Core</span>
+                        <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#0f172a' }}>Generated by AutoAI Core</span>
                       </div>
-                      <p className="text-[10px] font-bold text-[#94a3b8]">ID: {activeCar.id} • {new Date().toLocaleTimeString()}</p>
+                      <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#94a3b8', margin: 0 }}>ID: {activeCar.id} • {new Date().toLocaleTimeString()}</p>
                     </div>
                   </div>
                 </div>
