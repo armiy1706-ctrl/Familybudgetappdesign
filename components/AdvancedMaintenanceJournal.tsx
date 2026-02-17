@@ -315,42 +315,44 @@ export const AdvancedMaintenanceJournal = ({
     }
 
     const element = document.getElementById('full-report-content');
-    if (!element) return;
+    if (!element) {
+      toast.error("Контент для PDF не найден");
+      return;
+    }
 
     setIsGeneratingPdf(true);
     const opt = {
       margin: 10,
-      filename: `AutoAI_Report_${activeCar.plate}.pdf`,
+      filename: `AutoAI_Report_${activeCar.plate || 'CAR'}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       if (shouldSendToTelegram) {
-        // Use a more direct approach for html2pdf
-        const pdfWorker = h2p().set(opt).from(element).outputPdf('datauristring');
+        // More robust way to handle datauristring to avoid "worker error"
+        const pdfBlob = await h2p().set(opt).from(element).outputPdf('blob');
         
-        pdfWorker.then((dataUri: string) => {
-          if (dataUri) {
-            onSendToTelegram?.(dataUri, `${activeCar.make} ${activeCar.model}`);
-          } else {
-            toast.error("Не удалось сгенерировать PDF данные");
-          }
-          setIsGeneratingPdf(false);
-        }).catch((err: any) => {
-          console.error("Worker error:", err);
-          toast.error("Ошибка воркера PDF");
-          setIsGeneratingPdf(false);
-        });
+        if (pdfBlob) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result as string;
+            onSendToTelegram?.(base64data, `${activeCar.make} ${activeCar.model}`);
+            setIsGeneratingPdf(false);
+          };
+          reader.readAsDataURL(pdfBlob);
+        } else {
+          throw new Error("Не удалось создать BLOB");
+        }
       } else {
         await h2p().set(opt).from(element).save();
         toast.success("Отчет сохранен на устройство");
         setIsGeneratingPdf(false);
       }
-    } catch (err) {
-      console.error("PDF Error:", err);
-      toast.error("Ошибка генерации PDF");
+    } catch (err: any) {
+      console.error("PDF Generation Detailed Error:", err);
+      toast.error(`Ошибка PDF: ${err.message || 'Сбой генерации'}`);
       setIsGeneratingPdf(false);
     }
   };
