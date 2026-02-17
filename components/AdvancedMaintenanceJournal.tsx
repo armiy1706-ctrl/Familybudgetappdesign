@@ -767,105 +767,114 @@ export const AdvancedMaintenanceJournal = ({
 
               <div className="flex-1 overflow-y-auto p-10 bg-slate-200/50">
                 {/* The actual element to be turned into PDF */}
-                <div id="full-report-content" className="bg-white p-12 shadow-xl mx-auto max-w-[210mm] min-h-[297mm] text-slate-900 font-sans">
+                <div id="full-report-content" className="bg-white p-12 shadow-xl mx-auto max-w-[210mm] min-h-[297mm] text-[#0f172a] font-sans">
                   {/* Report Header */}
-                  <div className="flex justify-between items-start border-b-4 border-indigo-600 pb-8 mb-10">
+                  <div className="flex justify-between items-start border-b-4 border-[#4f46e5] pb-8 mb-10">
                     <div>
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
+                        <div className="w-10 h-10 bg-[#4f46e5] rounded-xl flex items-center justify-center text-white">
                           <TrendingUp size={24} />
                         </div>
-                        <h1 className="text-3xl font-black tracking-tighter uppercase italic">AutoAI Report</h1>
+                        <h1 className="text-3xl font-black tracking-tighter uppercase italic text-[#0f172a]">AutoAI Report</h1>
                       </div>
-                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-none">Smart Automotive Intelligence Systems</p>
+                      <p className="text-[#94a3b8] text-xs font-bold uppercase tracking-widest leading-none">Smart Automotive Intelligence Systems</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Дата формирования</p>
-                      <p className="text-sm font-bold text-slate-900">{new Date().toLocaleDateString('ru-RU')}</p>
+                      <p className="text-[10px] font-black uppercase text-[#94a3b8] tracking-widest mb-1">Дата формирования</p>
+                      <p className="text-sm font-bold text-[#0f172a]">{new Date().toLocaleDateString('ru-RU')}</p>
                     </div>
                   </div>
 
                   {/* Car Identity */}
                   <div className="grid grid-cols-2 gap-8 mb-10">
-                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                      <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-2">Автомобиль</p>
-                      <h2 className="text-2xl font-black text-slate-900">{(activeCar as any).make} {(activeCar as any).model}</h2>
-                      <p className="text-sm font-bold text-slate-500 mt-1">{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
+                    <div className="bg-[#f8fafc] p-6 rounded-3xl border border-[#f1f5f9]">
+                      <p className="text-[10px] font-black uppercase text-[#4f46e5] tracking-widest mb-2">Автомобиль</p>
+                      <h2 className="text-2xl font-black text-[#0f172a]">{(activeCar as any).make} {(activeCar as any).model}</h2>
+                      <p className="text-sm font-bold text-[#64748b] mt-1">{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
                     </div>
-                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                      <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-2">Идентификация</p>
-                      <p className="text-lg font-black text-slate-900 uppercase tracking-tight">{(activeCar as any).plate || 'БЕЗ НОМЕРА'}</p>
-                      <p className="text-xs font-bold text-slate-400 mt-1 font-mono break-all">{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
+                    <div className="bg-[#f8fafc] p-6 rounded-3xl border border-[#f1f5f9]">
+                      <p className="text-[10px] font-black uppercase text-[#4f46e5] tracking-widest mb-2">Идентификация</p>
+                      <p className="text-lg font-black text-[#0f172a] uppercase tracking-tight">{(activeCar as any).plate || 'БЕЗ НОМЕРА'}</p>
+                      <p className="text-xs font-bold text-[#94a3b8] mt-1 font-mono break-all">{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
                     </div>
                   </div>
 
                   {/* Stats Summary */}
                   <div className="grid grid-cols-4 gap-4 mb-10">
-                    <div className="text-center p-4 border border-slate-100 rounded-2xl bg-indigo-50/30">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Общие затраты</p>
-                      <p className="text-lg font-black text-indigo-600">{(stats.total || 0).toLocaleString()} ₽</p>
+                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl bg-[#f5f3ff]">
+                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Общие затраты</p>
+                      <p className="text-lg font-black text-[#4f46e5]">{(stats.total || 0).toLocaleString()} ₽</p>
                     </div>
-                    <div className="text-center p-4 border border-slate-100 rounded-2xl">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Записей</p>
-                      <p className="text-lg font-black text-slate-900">{carRecords.length}</p>
+                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl">
+                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Записей</p>
+                      <p className="text-lg font-black text-[#0f172a]">{carRecords.length}</p>
                     </div>
-                    <div className="text-center p-4 border border-slate-100 rounded-2xl">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Пробег</p>
-                      <p className="text-lg font-black text-slate-900">{((activeCar as any).mileage || 0).toLocaleString()} км</p>
+                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl">
+                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Пробег</p>
+                      <p className="text-lg font-black text-[#0f172a]">{((activeCar as any).mileage || 0).toLocaleString()} км</p>
                     </div>
-                    <div className="text-center p-4 border border-slate-100 rounded-2xl">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">ТО / Сервис</p>
-                      <p className="text-lg font-black text-emerald-600">{(stats.byType.service || 0).toLocaleString()} ₽</p>
+                    <div className="text-center p-4 border border-[#f1f5f9] rounded-2xl">
+                      <p className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">ТО / Сервис</p>
+                      <p className="text-lg font-black text-[#10b981]">{(stats.byType.service || 0).toLocaleString()} ₽</p>
                     </div>
                   </div>
 
                   {/* Main History Table */}
                   <div className="mb-12">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <div className="w-1.5 h-4 bg-indigo-600 rounded-full" />
+                    <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <div className="w-1.5 h-4 bg-[#4f46e5] rounded-full" />
                       Подробная история операций
                     </h3>
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-900 text-white">
+                        <tr className="bg-[#0f172a] text-white">
                           <th className="p-4 text-[10px] font-black uppercase tracking-widest rounded-tl-xl">Дата</th>
                           <th className="p-4 text-[10px] font-black uppercase tracking-widest">Категория</th>
                           <th className="p-4 text-[10px] font-black uppercase tracking-widest">Описание выполненных работ</th>
                           <th className="p-4 text-[10px] font-black uppercase tracking-widest text-right rounded-tr-xl">Сумма</th>
                         </tr>
                       </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {carRecords.length > 0 ? carRecords.map((r, i) => {
-                              const cat = CATEGORIES[r.type] || CATEGORIES.service;
-                              return (
-                                <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                  <td className="p-4 text-xs font-bold text-slate-500 whitespace-nowrap">{r.date}</td>
-                                  <td className="p-4">
-                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${cat.color} ${cat.bgColor}`}>
-                                      {cat.label}
-                                    </span>
-                                  </td>
-                                  <td className="p-4 text-xs font-bold text-slate-900 leading-relaxed">{r.description}</td>
-                                  <td className="p-4 text-xs font-black text-slate-900 text-right whitespace-nowrap">{(r.amount || 0).toLocaleString()} ₽</td>
-                                </tr>
-                              );
-                            }) : (
-                              <tr>
-                                <td colSpan={4} className="p-10 text-center text-slate-400 italic text-xs">Записи отсутствуют</td>
-                              </tr>
-                            )}
-                          </tbody>
+                      <tbody className="divide-y divide-[#f1f5f9]">
+                        {carRecords.length > 0 ? carRecords.map((r, i) => {
+                          const cat = CATEGORIES[r.type] || CATEGORIES.service;
+                          // Standard HEX colors for PDF to avoid OKLCH issues with html2canvas
+                          const pdfColors: any = {
+                            repair: { text: '#e11d48', bg: '#fff1f2' },
+                            parts: { text: '#d97706', bg: '#fffbeb' },
+                            fuel: { text: '#4f46e5', bg: '#f5f3ff' },
+                            service: { text: '#059669', bg: '#ecfdf5' }
+                          };
+                          const pColor = pdfColors[r.type] || pdfColors.service;
+                          
+                          return (
+                            <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                              <td className="p-4 text-xs font-bold text-[#64748b] whitespace-nowrap">{r.date}</td>
+                              <td className="p-4">
+                                <span style={{ color: pColor.text, backgroundColor: pColor.bg }} className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded">
+                                  {cat.label}
+                                </span>
+                              </td>
+                              <td className="p-4 text-xs font-bold text-[#0f172a] leading-relaxed">{r.description}</td>
+                              <td className="p-4 text-xs font-black text-[#0f172a] text-right whitespace-nowrap">{(r.amount || 0).toLocaleString()} ₽</td>
+                            </tr>
+                          );
+                        }) : (
+                          <tr>
+                            <td colSpan={4} className="p-10 text-center text-[#94a3b8] italic text-xs">Записи отсутствуют</td>
+                          </tr>
+                        )}
+                      </tbody>
                     </table>
                   </div>
 
                   {/* Report Footer */}
-                  <div className="mt-auto pt-10 border-t border-slate-100">
+                  <div className="mt-auto pt-10 border-t border-[#f1f5f9]">
                     <div className="flex justify-between items-center opacity-50">
                       <div className="flex items-center gap-2">
-                        <TrendingUp size={16} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Generated by AutoAI Core</span>
+                        <TrendingUp size={16} color="#4f46e5" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#0f172a]">Generated by AutoAI Core</span>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-400">ID: {activeCar.id} • {new Date().toLocaleTimeString()}</p>
+                      <p className="text-[10px] font-bold text-[#94a3b8]">ID: {activeCar.id} • {new Date().toLocaleTimeString()}</p>
                     </div>
                   </div>
                 </div>
