@@ -293,7 +293,7 @@ export const AdvancedMaintenanceJournal = ({
       const url = window.URL.createObjectURL(content);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `AutoAI_Export_${activeCar.plate}_${new Date().toISOString().split('T')[0]}.zip`;
+      link.download = `AutoAI_Export_${activeCar.licensePlate || 'Car'}_${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -324,7 +324,7 @@ export const AdvancedMaintenanceJournal = ({
     
     const opt = {
       margin: 0,
-      filename: `AutoAI_Report_${activeCar.plate || 'CAR'}.pdf`,
+      filename: `AutoAI_Report_${activeCar.licensePlate || 'CAR'}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { 
         scale: 2, 
@@ -438,7 +438,7 @@ export const AdvancedMaintenanceJournal = ({
             <div>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                 {activeCar.make} {activeCar.model}
-                <span className="text-xs bg-slate-900 text-white px-3 py-1 rounded-lg font-black tracking-widest uppercase">{activeCar.plate}</span>
+                <span className="text-xs bg-slate-900 text-white px-3 py-1 rounded-lg font-black tracking-widest uppercase">{activeCar.licensePlate}</span>
               </h2>
               <p className="text-slate-400 font-medium text-sm mt-1">Всего записей в журнале: {carRecords.length}</p>
             </div>
@@ -840,7 +840,7 @@ export const AdvancedMaintenanceJournal = ({
                     <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
                       <p style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '6px', margin: 0 }}>Идентификация</p>
                       <p style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '-0.025em', margin: 0 }}>
-                        {activeCar.plate ? activeCar.plate : 'НОМЕР НЕ УКАЗАН'}
+                        {activeCar.licensePlate ? activeCar.licensePlate : 'НОМЕР НЕ УКАЗАН'}
                       </p>
                       <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginTop: '4px', fontFamily: 'monospace', wordBreak: 'break-all', margin: 0 }}>
                         VIN: {activeCar.vin ? activeCar.vin : 'ОТСУТСТВУЕТ'}
