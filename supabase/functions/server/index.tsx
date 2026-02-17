@@ -214,18 +214,34 @@ app.post('/send-report', async (c) => {
     const { tgId, pdfBase64, fileName } = await c.req.json();
     if (!tgId || !pdfBase64) return c.json({ error: 'Missing data' }, 400);
 
+    // Better validation for chat_id
+    if (tgId === 'demo_user' || isNaN(Number(tgId))) {
+      return c.json({ 
+        error: 'Invalid Telegram ID', 
+        details: 'Отправка отчетов доступна только при запуске через Telegram. В демо-режиме используйте кнопку "Скачать на устройство".' 
+      }, 400);
+    }
+
     const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
     if (!botToken) return c.json({ error: 'Bot token not configured' }, 500);
 
-    // Convert base64 to Blob
-    const base64Data = pdfBase64.split(',')[1] || pdfBase64;
-    const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    const blob = new Blob([binaryData], { type: 'application/pdf' });
+    // Clean base64 string
+    const base64Data = pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64;
+    
+    // Use a more robust decoding method
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: 'application/pdf' });
 
     const formData = new FormData();
     formData.append('chat_id', tgId);
     formData.append('document', blob, fileName || 'AutoAI_Report.pdf');
     formData.append('caption', '📄 Ваш полный отчет об обслуживании автомобиля от AutoAI.');
+
+    console.log(`Sending report to TG ID: ${tgId}, size: ${bytes.length} bytes`);
 
     const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
       method: 'POST',
@@ -235,13 +251,13 @@ app.post('/send-report', async (c) => {
     const tgData = await tgRes.json();
     if (!tgRes.ok) {
       console.error("Telegram API Error:", tgData);
-      return c.json({ error: 'Telegram API Error', details: tgData }, 500);
+      return c.json({ error: 'Telegram API Error', details: tgData.description || 'Unknown error' }, 500);
     }
 
     return c.json({ success: true });
   } catch (error) {
     console.error("Send Report Error:", error);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: 'Internal Server Error', details: error.message }, 500);
   }
 })
 
