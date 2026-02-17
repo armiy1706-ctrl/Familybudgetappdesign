@@ -290,36 +290,18 @@ export const AdvancedMaintenanceJournal = ({
     setIsGeneratingPdf(true);
     
     const opt = {
-      margin: 0,
+      margin: [10, 10, 10, 10],
       filename: `AutoAI_Report_${activeCar.licensePlate || 'CAR'}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { 
-        scale: 2, 
+        scale: 3, 
         useCORS: true, 
+        allowTaint: true,
         logging: false,
         letterRendering: true,
-        backgroundColor: '#ffffff',
-        // CRITICAL FIX: Manually clean the cloned document before rendering
-        onclone: (clonedDoc: Document) => {
-          // 1. Remove ALL style and link tags that might contain oklch from the cloned document
-          const styles = clonedDoc.getElementsByTagName('style');
-          for (let i = styles.length - 1; i >= 0; i--) {
-            if (styles[i].innerHTML.includes('oklch') || styles[i].innerHTML.includes('--tw-')) {
-              styles[i].remove();
-            }
-          }
-          
-          const links = clonedDoc.getElementsByTagName('link');
-          for (let i = links.length - 1; i >= 0; i--) {
-            if (links[i].rel === 'stylesheet') {
-              links[i].remove();
-            }
-          }
-
-          // 2. The report element itself uses inline styles, so it will still look correct
-          // but now the parser won't crash on global Tailwind variables.
-        }
+        backgroundColor: '#ffffff'
       },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
@@ -784,12 +766,9 @@ export const AdvancedMaintenanceJournal = ({
                     color: '#0f172a', 
                     padding: '40px', 
                     margin: '0 auto', 
-                    width: '210mm', 
-                    minHeight: '297mm',
+                    width: '190mm', 
                     fontFamily: 'sans-serif',
                     boxSizing: 'border-box',
-                    overflow: 'hidden',
-                    position: 'relative'
                   }}
                 >
                   {/* Report Header */}
@@ -869,7 +848,7 @@ export const AdvancedMaintenanceJournal = ({
                           const pColor = pdfColors[r.type] || pdfColors.service;
                           
                           return (
-                            <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                            <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9', pageBreakInside: 'avoid' }}>
                               <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>{r.date}</td>
                               <td style={{ padding: '12px' }}>
                                 <span style={{ color: pColor.text, backgroundColor: pColor.bg, fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', padding: '3px 6px', borderRadius: '4px' }}>
@@ -896,17 +875,24 @@ export const AdvancedMaintenanceJournal = ({
                         <div style={{ width: '4px', height: '14px', backgroundColor: '#4f46e5', borderRadius: '10px' }} />
                         Прикрепленные чеки и документы
                       </h3>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         {carRecords.filter(r => r.receiptImage).map((r) => (
-                          <div key={r.id} style={{ width: 'calc(33.33% - 10px)', border: '1px solid #f1f5f9', borderRadius: '12px', padding: '10px', backgroundColor: '#f8fafc', boxSizing: 'border-box' }}>
+                          <div key={r.id} style={{ width: '100%', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '20px', backgroundColor: '#f8fafc', boxSizing: 'border-box', pageBreakInside: 'avoid', marginBottom: '10px' }}>
                             <img 
                               src={r.receiptImage} 
-                              style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', marginBottom: '8px', display: 'block' }} 
+                              crossOrigin="anonymous"
+                              style={{ width: '100%', height: 'auto', maxHeight: '250mm', objectFit: 'contain', borderRadius: '12px', marginBottom: '15px', display: 'block', backgroundColor: '#ffffff' }} 
                             />
-                            <p style={{ fontSize: '7px', fontWeight: '900', color: '#94a3b8', margin: 0, textTransform: 'uppercase' }}>{r.date}</p>
-                            <p style={{ fontSize: '8px', fontWeight: 'bold', color: '#0f172a', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {r.description}
-                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
+                              <div style={{ flex: 1 }}>
+                                <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 4px 0' }}>{r.description}</p>
+                                <p style={{ fontSize: '9px', fontWeight: '900', color: '#94a3b8', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{CATEGORIES[r.type].label}</p>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <p style={{ fontSize: '10px', fontWeight: '900', color: '#4f46e5', margin: '0 0 4px 0' }}>{r.date}</p>
+                                <p style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{(r.amount || 0).toLocaleString()} ₽</p>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
