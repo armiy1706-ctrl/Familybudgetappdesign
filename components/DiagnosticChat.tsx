@@ -71,14 +71,16 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage,
       const assistantMsg: Message = { 
         id: (Date.now() + 1).toString(), 
         role: 'assistant', 
-        content: data.message || 'Анализ фото завершен.',
+        content: data.isMock 
+          ? `⚠️ [РЕЖИМ ДЕМО: Квота OpenAI исчерпана]\n\n${data.message}`
+          : (data.message || 'Анализ фото завершен.'),
         results: data.results || []
       };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
       console.error('Image analysis error:', err);
       const errorMessage = err.isQuota 
-        ? "Ошибка: Квота OpenAI исчерпана. Пожалуйста, проверьте баланс в настройках профиля или обновите API ключ." 
+        ? "Внимание: Квота OpenAI исчерпана. Система переключена в демо-режим. Пожалуйста, проверьте баланс вашего API-ключа." 
         : `Ошибка: ${err.message}`;
       toast.error(errorMessage);
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: errorMessage, isError: true }]);
@@ -128,7 +130,9 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage,
       const assistantMsg: Message = { 
         id: (Date.now() + 1).toString(), 
         role: 'assistant', 
-        content: data.message || 'Не удалось получить ответ.',
+        content: data.isMock 
+          ? `⚠️ [РЕЖИМ ДЕМО: Квота OpenAI исчерпана]\n\n${data.message}`
+          : (data.message || 'Не удалось получить ответ.'),
         results: data.results || []
       };
       setMessages(prev => [...prev, assistantMsg]);
@@ -136,7 +140,7 @@ export const DiagnosticChat = ({ messages, setMessages, activeCar, pendingImage,
       console.error('Chat error:', err);
       
       const errorMessage = err.isQuota 
-        ? "Ошибка: Квота OpenAI исчерпана (429). Пожалуйста, проверьте баланс в настройках профиля или обновите API ключ."
+        ? "Внимание: Квота OpenAI исчерпана (429). Система работает в демо-режиме. Проверьте баланс аккаунта OpenAI."
         : `Ошибка: ${err.message || 'Сбой связи с сервером'}`;
 
       toast.error(errorMessage);
