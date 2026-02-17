@@ -776,13 +776,13 @@ export const AdvancedMaintenanceJournal = ({
                   <div className="grid grid-cols-2 gap-8 mb-10">
                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                       <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-2">Автомобиль</p>
-                      <h2 className="text-2xl font-black text-slate-900">{activeCar.make} {activeCar.model}</h2>
-                      <p className="text-sm font-bold text-slate-500 mt-1">{activeCar.year} г.в. • {activeCar.transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
+                      <h2 className="text-2xl font-black text-slate-900">{(activeCar as any).make} {(activeCar as any).model}</h2>
+                      <p className="text-sm font-bold text-slate-500 mt-1">{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
                     </div>
                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                       <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-2">Идентификация</p>
-                      <p className="text-lg font-black text-slate-900 uppercase tracking-tight">{activeCar.plate || 'БЕЗ НОМЕРА'}</p>
-                      <p className="text-xs font-bold text-slate-400 mt-1 font-mono break-all">{activeCar.vin || 'VIN ОТСУТСТВУЕТ'}</p>
+                      <p className="text-lg font-black text-slate-900 uppercase tracking-tight">{(activeCar as any).plate || 'БЕЗ НОМЕРА'}</p>
+                      <p className="text-xs font-bold text-slate-400 mt-1 font-mono break-all">{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
                     </div>
                   </div>
 
@@ -790,7 +790,7 @@ export const AdvancedMaintenanceJournal = ({
                   <div className="grid grid-cols-4 gap-4 mb-10">
                     <div className="text-center p-4 border border-slate-100 rounded-2xl bg-indigo-50/30">
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Общие затраты</p>
-                      <p className="text-lg font-black text-indigo-600">{stats.total.toLocaleString()} ₽</p>
+                      <p className="text-lg font-black text-indigo-600">{(stats.total || 0).toLocaleString()} ₽</p>
                     </div>
                     <div className="text-center p-4 border border-slate-100 rounded-2xl">
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Записей</p>
@@ -798,7 +798,7 @@ export const AdvancedMaintenanceJournal = ({
                     </div>
                     <div className="text-center p-4 border border-slate-100 rounded-2xl">
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Пробег</p>
-                      <p className="text-lg font-black text-slate-900">{activeCar.mileage.toLocaleString()} км</p>
+                      <p className="text-lg font-black text-slate-900">{((activeCar as any).mileage || 0).toLocaleString()} км</p>
                     </div>
                     <div className="text-center p-4 border border-slate-100 rounded-2xl">
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">ТО / Сервис</p>
@@ -821,24 +821,27 @@ export const AdvancedMaintenanceJournal = ({
                           <th className="p-4 text-[10px] font-black uppercase tracking-widest text-right rounded-tr-xl">Сумма</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {carRecords.length > 0 ? carRecords.map((r, i) => (
-                          <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                            <td className="p-4 text-xs font-bold text-slate-500 whitespace-nowrap">{r.date}</td>
-                            <td className="p-4">
-                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${CATEGORIES[r.type].color} ${CATEGORIES[r.type].bgColor}`}>
-                                {CATEGORIES[r.type].label}
-                              </span>
-                            </td>
-                            <td className="p-4 text-xs font-bold text-slate-900 leading-relaxed">{r.description}</td>
-                            <td className="p-4 text-xs font-black text-slate-900 text-right whitespace-nowrap">{r.amount.toLocaleString()} ₽</td>
-                          </tr>
-                        )) : (
-                          <tr>
-                            <td colSpan={4} className="p-10 text-center text-slate-400 italic text-xs">Записи отсутствуют</td>
-                          </tr>
-                        )}
-                      </tbody>
+                          <tbody className="divide-y divide-slate-100">
+                            {carRecords.length > 0 ? carRecords.map((r, i) => {
+                              const cat = CATEGORIES[r.type] || CATEGORIES.service;
+                              return (
+                                <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                  <td className="p-4 text-xs font-bold text-slate-500 whitespace-nowrap">{r.date}</td>
+                                  <td className="p-4">
+                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${cat.color} ${cat.bgColor}`}>
+                                      {cat.label}
+                                    </span>
+                                  </td>
+                                  <td className="p-4 text-xs font-bold text-slate-900 leading-relaxed">{r.description}</td>
+                                  <td className="p-4 text-xs font-black text-slate-900 text-right whitespace-nowrap">{(r.amount || 0).toLocaleString()} ₽</td>
+                                </tr>
+                              );
+                            }) : (
+                              <tr>
+                                <td colSpan={4} className="p-10 text-center text-slate-400 italic text-xs">Записи отсутствуют</td>
+                              </tr>
+                            )}
+                          </tbody>
                     </table>
                   </div>
 
