@@ -90,7 +90,10 @@ export const AdvancedMaintenanceJournal = ({
   useEffect(() => {
     const saved = localStorage.getItem('autoai_maintenance_records');
     if (saved) {
-      try { setRecords(JSON.parse(saved)); } catch (e) { console.error(e); }
+      try { 
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setRecords(parsed);
+      } catch (e) { console.error(e); }
     }
   }, []);
 
@@ -98,6 +101,7 @@ export const AdvancedMaintenanceJournal = ({
     localStorage.setItem('autoai_maintenance_records', JSON.stringify(records));
   }, [records]);
 
+  // Set initial activeCarId if not set
   useEffect(() => {
     if (cars && cars.length > 0 && !activeCarId) {
       setActiveCarId(cars[0].id);
@@ -109,7 +113,7 @@ export const AdvancedMaintenanceJournal = ({
   const carRecords = useMemo(() => {
     if (!activeCarId) return [];
     return records.filter(r => r.carId === activeCarId && 
-      (r.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (r.description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
        (CATEGORIES[r.type]?.label || '').toLowerCase().includes(searchTerm.toLowerCase()))
     ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [records, activeCarId, searchTerm]);
@@ -175,10 +179,10 @@ export const AdvancedMaintenanceJournal = ({
 
     setIsGeneratingPdf(true);
     
-    // Safety timeout to prevent infinite loader
+    // Safety timeout
     const safetyTimeout = setTimeout(() => {
       setIsGeneratingPdf(false);
-      toast.error('Превышено время ожидания. Попробуйте еще раз.');
+      toast.error('Превышено время ожидания.');
     }, 20000);
 
     try {
@@ -191,7 +195,6 @@ export const AdvancedMaintenanceJournal = ({
           useCORS: true, 
           logging: false,
           letterRendering: true,
-          // CRITICAL FIX: Strip Tailwind 4 oklch styles which crash html2canvas
           onclone: (clonedDoc: Document) => {
             const styles = clonedDoc.getElementsByTagName('style');
             for (let i = styles.length - 1; i >= 0; i--) {
@@ -200,29 +203,19 @@ export const AdvancedMaintenanceJournal = ({
                 styles[i].remove();
               }
             }
-            const links = clonedDoc.getElementsByTagName('link');
-            for (let i = links.length - 1; i >= 0; i--) {
-              if (links[i].rel === 'stylesheet') links[i].remove();
-            }
           }
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      // Create a worker
       const worker = h2p().set(opt).from(element);
 
       if (toTelegram) {
-        toast.info("Генерируем PDF для Telegram...");
         const result = await worker.outputPdf('datauristring');
-        
         clearTimeout(safetyTimeout);
         setIsGeneratingPdf(false);
-        
         if (result && onSendToTelegram) {
           onSendToTelegram(result, `${activeCar.make || 'car'}_${activeCar.model || 'model'}`);
-        } else {
-          toast.error('Ошибка: PDF не был сформирован');
         }
       } else {
         await worker.save();
@@ -231,8 +224,8 @@ export const AdvancedMaintenanceJournal = ({
         toast.success("PDF сохранен!");
       }
     } catch (err) {
-      console.error('PDF Generation Error:', err);
-      toast.error("Сбой генерации PDF. Попробуйте обновить страницу.");
+      console.error('PDF Error:', err);
+      toast.error("Сбой генерации PDF.");
       clearTimeout(safetyTimeout);
       setIsGeneratingPdf(false);
     }
@@ -270,69 +263,61 @@ export const AdvancedMaintenanceJournal = ({
     <div className="space-y-8 pb-24 relative">
       <CameraCapture isOpen={isCameraOpen} onClose={() => setIsCameraOpen(false)} onCapture={(img) => { setTempReceiptImage(img); setIsCameraOpen(false); }} />
       
-      {/* Hidden PDF content for generation */}
-      <div className="hidden">
-        <div ref={reportRef} style={{ width: '210mm', padding: '20mm', background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif' }}>
-          <div style={{ borderBottom: '4px solid #4f46e5', paddingBottom: '10px', marginBottom: '20px' }}>
-            <h1 style={{ margin: 0, fontSize: '28px', color: '#000' }}>AutoAI: ОТЧЕТ</h1>
-            <p style={{ margin: '5px 0 0', fontSize: '12px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Журнал обслуживания и ТО</p>
-          </div>
-          
-          <table style={{ width: '100%', marginBottom: '20px' }}>
-            <tr>
-              <td style={{ width: '50%', verticalAlign: 'top' }}>
-                <p style={{ margin: '0 0 5px', fontSize: '10px', color: '#4f46e5', fontWeight: 'bold' }}>АВТОМОБИЛЬ</p>
-                <h2 style={{ margin: 0, fontSize: '20px' }}>{activeCar.make || '—'} {activeCar.model || '—'}</h2>
-                <p style={{ margin: '5px 0', fontSize: '14px' }}>Госномер: <b>{activeCar.licensePlate || '—'}</b></p>
-                <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>VIN: {activeCar.vin || '—'}</p>
-              </td>
-              <td style={{ width: '50%', textAlign: 'right', verticalAlign: 'top' }}>
-                <p style={{ margin: '0 0 5px', fontSize: '10px', color: '#666', fontWeight: 'bold' }}>ИТОГО ЗАТРАТ</p>
-                <h2 style={{ margin: 0, fontSize: '24px', color: '#000' }}>{stats.total.toLocaleString()} ₽</h2>
-                <p style={{ margin: '5px 0 0', fontSize: '10px', color: '#999' }}>Дата: {new Date().toLocaleDateString('ru-RU')}</p>
-              </td>
-            </tr>
-          </table>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px' }}>ДАТА</th>
-                <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px' }}>ТИП</th>
-                <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px' }}>ОПИСАНИЕ</th>
-                <th style={{ padding: '12px 8px', textAlign: 'right', fontSize: '10px' }}>СУММА</th>
-              </tr>
-            </thead>
-            <tbody>
-              {carRecords.map(r => (
-                <tr key={r.id} style={{ borderBottom: '1px solid #edf2f7' }}>
-                  <td style={{ padding: '10px 8px', fontSize: '10px' }}>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
-                  <td style={{ padding: '10px 8px', fontSize: '9px', fontWeight: 'bold', color: '#666' }}>{CATEGORIES[r.type]?.label || '—'}</td>
-                  <td style={{ padding: '10px 8px', fontSize: '10px' }}>{r.description || '—'}</td>
-                  <td style={{ padding: '10px 8px', fontSize: '10px', fontWeight: 'bold', textAlign: 'right' }}>{(r.amount || 0).toLocaleString()} ₽</td>
+      {/* Hidden PDF content - SAFELY RENDER ONLY IF activeCar EXISTS */}
+      {activeCar && (
+        <div className="hidden" aria-hidden="true">
+          <div ref={reportRef} style={{ width: '210mm', padding: '20mm', background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif' }}>
+            <div style={{ borderBottom: '4px solid #4f46e5', paddingBottom: '10px', marginBottom: '20px' }}>
+              <h1 style={{ margin: 0, fontSize: '28px', color: '#000' }}>AutoAI: ОТЧЕТ</h1>
+              <p style={{ margin: '5px 0 0', fontSize: '12px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Журнал обслуживания и ТО</p>
+            </div>
+            <table style={{ width: '100%', marginBottom: '20px' }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: '50%', verticalAlign: 'top' }}>
+                    <p style={{ margin: '0 0 5px', fontSize: '10px', color: '#4f46e5', fontWeight: 'bold' }}>АВТОМОБИЛЬ</p>
+                    <h2 style={{ margin: 0, fontSize: '20px' }}>{activeCar.make || '—'} {activeCar.model || '—'}</h2>
+                    <p style={{ margin: '5px 0', fontSize: '14px' }}>Госномер: <b>{activeCar.licensePlate || '—'}</b></p>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>VIN: {activeCar.vin || '—'}</p>
+                  </td>
+                  <td style={{ width: '50%', textAlign: 'right', verticalAlign: 'top' }}>
+                    <p style={{ margin: '0 0 5px', fontSize: '10px', color: '#666', fontWeight: 'bold' }}>ИТОГО ЗАТРАТ</p>
+                    <h2 style={{ margin: 0, fontSize: '24px', color: '#000' }}>{stats.total.toLocaleString()} ₽</h2>
+                    <p style={{ margin: '5px 0 0', fontSize: '10px', color: '#999' }}>Дата: {new Date().toLocaleDateString('ru-RU')}</p>
+                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          <div style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid #eee', fontSize: '9px', color: '#aaa', textAlign: 'center' }}>
-            Сгенерировано интеллектуальной системой AutoAI • v4.2
+              </tbody>
+            </table>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px' }}>ДАТА</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px' }}>ТИП</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontSize: '10px' }}>ОПИСАНИЕ</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontSize: '10px' }}>СУММА</th>
+                </tr>
+              </thead>
+              <tbody>
+                {carRecords.map(r => (
+                  <tr key={r.id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                    <td style={{ padding: '10px 8px', fontSize: '10px' }}>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
+                    <td style={{ padding: '10px 8px', fontSize: '9px', fontWeight: 'bold', color: '#666' }}>{CATEGORIES[r.type]?.label || '—'}</td>
+                    <td style={{ padding: '10px 8px', fontSize: '10px' }}>{r.description || '—'}</td>
+                    <td style={{ padding: '10px 8px', fontSize: '10px', fontWeight: 'bold', textAlign: 'right' }}>{(r.amount || 0).toLocaleString()} ₽</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      )}
 
       <AnimatePresence>
         {isGeneratingPdf && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
             <div className="bg-white p-10 rounded-[40px] shadow-2xl flex flex-col items-center gap-6 max-w-xs w-full text-center">
-              <div className="relative">
-                <Loader2 className="animate-spin text-indigo-600" size={48} />
-                <TrendingUp className="absolute inset-0 m-auto text-indigo-200" size={20} />
-              </div>
-              <div>
-                <p className="text-sm font-black uppercase tracking-widest text-slate-900 mb-2">Создание отчета</p>
-                <p className="text-[10px] font-bold text-slate-400 leading-relaxed uppercase">Подготовка PDF и визуализация данных для Telegram...</p>
-              </div>
+              <Loader2 className="animate-spin text-indigo-600" size={48} />
+              <p className="text-sm font-black uppercase tracking-widest text-slate-900 mb-2">Создание отчета</p>
             </div>
           </motion.div>
         )}
@@ -350,7 +335,7 @@ export const AdvancedMaintenanceJournal = ({
         ))}
       </div>
 
-      {activeCar && (
+      {activeCar ? (
         <div className="space-y-8 animate-in fade-in duration-300">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
@@ -361,8 +346,7 @@ export const AdvancedMaintenanceJournal = ({
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               <button onClick={() => handleGeneratePdf(false)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50"><Download size={14} /> PDF</button>
-              <button onClick={() => handleGeneratePdf(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"><Send size={14} /> Сформировать отчет</button>
-              <button onClick={exportArchive} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50"><Archive size={14} /> ZIP</button>
+              <button onClick={() => handleGeneratePdf(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100"><Send size={14} /> В Telegram</button>
               <button onClick={() => setShowAddModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest"><Plus size={16} /> Добавить</button>
             </div>
           </div>
@@ -417,6 +401,11 @@ export const AdvancedMaintenanceJournal = ({
               ) : <div className="py-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-widest">Записей не найдено</div>}
             </div>
           </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <Loader2 className="animate-spin mb-4" />
+          <p className="text-xs font-black uppercase tracking-widest">Загрузка данных автомобиля...</p>
         </div>
       )}
 
