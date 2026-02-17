@@ -75,16 +75,21 @@ export const AdvancedMaintenanceJournal = ({
   
   const reportRef = useRef<HTMLDivElement>(null);
 
+  // Load external libraries once
   useEffect(() => {
-    const loadScript = (id: string, src: string) => {
-      if (!document.getElementById(id)) {
+    const scripts = [
+      { id: 'jszip-lib-js', src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js' },
+      { id: 'html2pdf-lib-js', src: 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js' }
+    ];
+    scripts.forEach(script => {
+      if (!document.getElementById(script.id)) {
         const s = document.createElement('script');
-        s.id = id; s.src = src; s.async = true;
+        s.id = script.id;
+        s.src = script.src;
+        s.async = true;
         document.body.appendChild(s);
       }
-    };
-    loadScript('jszip-lib-js', 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-    loadScript('html2pdf-lib-js', 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+    });
   }, []);
 
   useEffect(() => {
@@ -93,7 +98,7 @@ export const AdvancedMaintenanceJournal = ({
       try { 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setRecords(parsed);
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("LocalStorage load error:", e); }
     }
   }, []);
 
@@ -154,83 +159,79 @@ export const AdvancedMaintenanceJournal = ({
   };
 
   const handleGeneratePdf = async (toTelegram = false) => {
-    if (!activeCar) {
-      toast.error('Автомобиль не выбран');
+    const h2p = (window as any).html2pdf;
+    if (!h2p) {
+      toast.error('Модуль PDF еще не загружен. Попробуйте снова через 3 сек.');
       return;
     }
 
-    const h2p = (window as any).html2pdf;
-    if (!h2p) {
-      toast.error('Библиотека PDF еще загружается. Подождите пару секунд.');
+    if (!activeCar) {
+      toast.error('Выберите автомобиль');
       return;
     }
 
     const element = reportRef.current;
     if (!element) {
-      toast.error('Контент отчета не найден');
+      toast.error('Ошибка структуры отчета');
       return;
     }
 
     setIsGeneratingPdf(true);
     
-    // Safety timeout to prevent UI hang
-    const safetyTimeout = setTimeout(() => {
+    // Safety timer
+    const safetyTimer = setTimeout(() => {
       setIsGeneratingPdf(false);
-      toast.error('Превышено время генерации. Попробуйте еще раз.');
+      toast.error('Ошибка: Превышено время ожидания');
     }, 25000);
 
     try {
       const opt = {
         margin: [10, 10],
-        filename: `Report_${activeCar.licensePlate || 'Car'}.pdf`,
+        filename: `AutoAI_Report_${activeCar.licensePlate || 'Log'}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
+          scale: 1.5, // Reduced scale for better mobile performance
+          useCORS: true,
           logging: false,
           letterRendering: true,
-          scrollX: 0,
-          scrollY: 0,
-          // CRITICAL: Force removal of Tailwind 4 styles that break html2canvas
           onclone: (clonedDoc: Document) => {
-            const styleTags = clonedDoc.getElementsByTagName('style');
-            for (let i = 0; i < styleTags.length; i++) {
-              // Strip anything related to oklch or broad tailwind variables that crash the renderer
-              if (styleTags[i].innerHTML.includes('oklch') || styleTags[i].innerHTML.includes('--tw-')) {
-                styleTags[i].innerHTML = ""; 
-              }
-            }
-            // Add basic report styling to the clone to ensure it looks good without the main app CSS
-            const style = clonedDoc.createElement('style');
-            style.innerHTML = `
-              * { box-sizing: border-box; }
-              body { background: white !important; }
-              table { width: 100%; border-collapse: collapse; }
-              th { text-align: left; border-bottom: 2px solid #eee; padding: 10px; font-weight: bold; }
-              td { padding: 10px; border-bottom: 1px solid #f5f5f5; }
+            // AGGRESSIVE CLEANUP: Remove ALL style and link tags from the cloned document
+            // This prevents Tailwind 4 oklch() colors from crashing the canvas renderer
+            const head = clonedDoc.head;
+            const styleTags = head.querySelectorAll('style, link[rel="stylesheet"]');
+            styleTags.forEach(tag => tag.remove());
+
+            // Add back only the bare minimum styles needed for the report
+            const reportStyles = clonedDoc.createElement('style');
+            reportStyles.innerHTML = `
+              body { background: white !important; color: black !important; font-family: sans-serif; }
+              .report-wrapper { width: 100%; padding: 0; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th { text-align: left; padding: 10px; border-bottom: 2px solid #333; font-size: 10px; color: #666; }
+              td { padding: 10px; border-bottom: 1px solid #eee; font-size: 11px; }
+              .header { border-bottom: 4px solid #4f46e5; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
+              .car-info { background: #f8fafc; padding: 15px; border-radius: 12px; }
+              .stats-info { background: #f8fafc; padding: 15px; border-radius: 12px; text-align: right; }
+              .footer { margin-top: 40px; text-align: center; font-size: 9px; color: #ccc; }
+              h1 { margin: 0; font-size: 24px; font-weight: 900; color: #4f46e5; }
+              h2 { margin: 0; font-size: 16px; font-weight: 800; }
             `;
-            clonedDoc.head.appendChild(style);
+            head.appendChild(reportStyles);
           }
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      // Ensure images are fully loaded before capturing
-      await new Promise(resolve => setTimeout(resolve, 500));
-
       const worker = h2p().set(opt).from(element);
 
       if (toTelegram) {
         if (!onSendToTelegram) {
-          toast.error('Система Telegram не инициализирована');
-          clearTimeout(safetyTimeout);
-          setIsGeneratingPdf(false);
-          return;
+          throw new Error("Telegram sender function missing");
         }
-
+        
         const pdfBase64 = await worker.outputPdf('datauristring');
         
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimer);
         setIsGeneratingPdf(false);
 
         if (pdfBase64) {
@@ -240,43 +241,40 @@ export const AdvancedMaintenanceJournal = ({
         }
       } else {
         await worker.save();
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimer);
         setIsGeneratingPdf(false);
-        toast.success("PDF сохранен в загрузки");
+        toast.success("Отчет сохранен");
       }
     } catch (err) {
-      console.error('PDF Generation Failure:', err);
-      toast.error("Сбой генерации PDF. Попробуйте обновить страницу.");
-      clearTimeout(safetyTimeout);
+      console.error('PDF CRITICAL ERROR:', err);
+      toast.error("Критический сбой генерации. Обновите страницу.");
+      clearTimeout(safetyTimer);
       setIsGeneratingPdf(false);
     }
   };
 
   const exportArchive = async () => {
-    if (!activeCar) return;
     const JSZipLib = (window as any).JSZip;
-    if (!JSZipLib) return toast.error("Библиотека ZIP загружается...");
+    if (!JSZipLib) return toast.error("ZIP модуль загружается...");
     try {
       const zip = new JSZipLib();
       const csv = "\uFEFFДата,Тип,Описание,Сумма\n" + carRecords.map(r => `${r.date},${CATEGORIES[r.type]?.label || r.type},${r.description},${r.amount}`).join("\n");
       zip.file("report.csv", csv);
-      const imgs = zip.folder("images");
-      carRecords.forEach(r => { if (r.receiptImage) imgs.file(`${r.id}.png`, r.receiptImage.split(',')[1], { base64: true }); });
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `AutoAI_Backup.zip`;
+      a.download = `AutoAI_Records.zip`;
       a.click();
-      toast.success("ZIP архив готов");
-    } catch (e) { toast.error("Ошибка ZIP"); }
+      toast.success("Архив готов");
+    } catch (e) { toast.error("Ошибка экспорта"); }
   };
 
   if (!cars || cars.length === 0) return (
-    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 text-center px-10">
+    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 px-10">
       <CarIcon size={40} className="text-slate-300 mb-6" />
-      <h3 className="text-xl font-black text-slate-900 mb-2 uppercase">Гараж пуст</h3>
-      <p className="text-sm text-slate-400 font-medium">Добавьте авто в профиле.</p>
+      <h3 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">Гараж пуст</h3>
+      <p className="text-sm text-slate-400 font-medium">Добавьте автомобиль в профиле.</p>
     </div>
   );
 
@@ -284,57 +282,61 @@ export const AdvancedMaintenanceJournal = ({
     <div className="space-y-8 pb-24 relative">
       <CameraCapture isOpen={isCameraOpen} onClose={() => setIsCameraOpen(false)} onCapture={(img) => { setTempReceiptImage(img); setIsCameraOpen(false); }} />
       
-      {/* Hidden report container - Moved out of 'display:none' for better capture reliability */}
-      <div style={{ position: 'absolute', left: '-10000px', top: 0, width: '210mm', pointerEvents: 'none' }}>
+      {/* 
+          OFF-SCREEN REPORT CONTAINER 
+          Using visibility:hidden and absolute positioning to keep it out of sight 
+          but available for html2canvas capture.
+      */}
+      <div style={{ position: 'fixed', left: '-5000px', top: '0', zIndex: -1 }}>
         {activeCar && (
-          <div ref={reportRef} style={{ background: '#ffffff', color: '#111827', padding: '15mm', minHeight: '297mm', fontFamily: 'Arial, sans-serif' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '5px solid #4f46e5', paddingBottom: '15px', marginBottom: '25px' }}>
+          <div ref={reportRef} className="report-wrapper" style={{ background: '#ffffff', width: '210mm', padding: '15mm' }}>
+            <div className="header">
               <div>
-                <h1 style={{ margin: 0, fontSize: '32px', fontWeight: 900, letterSpacing: '-1px' }}>AutoAI</h1>
-                <p style={{ margin: 0, fontSize: '10px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '2px' }}>Maintenance & Service Report</p>
+                <h1>AutoAI Report</h1>
+                <p style={{ margin: 0, fontSize: '10px', color: '#666', fontWeight: 'bold' }}>СИСТЕМА ИНТЕЛЛЕКТУАЛЬНОЙ ДИАГНОСТИКИ</p>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: 0, fontSize: '10px', color: '#9ca3af' }}>Сформировано: {new Date().toLocaleDateString('ru-RU')}</p>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '30px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '12px' }}>
-                <p style={{ margin: '0 0 5px', fontSize: '9px', color: '#4f46e5', fontWeight: 900, textTransform: 'uppercase' }}>Автомобиль</p>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>{activeCar.make} {activeCar.model}</h2>
-                <p style={{ margin: '4px 0 0', fontSize: '13px', fontWeight: 600 }}>{activeCar.licensePlate}</p>
-                <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#6b7280' }}>VIN: {activeCar.vin || 'Не указан'}</p>
-              </div>
-              <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '12px', textAlign: 'right' }}>
-                <p style={{ margin: '0 0 5px', fontSize: '9px', color: '#4f46e5', fontWeight: 900, textTransform: 'uppercase' }}>Общие расходы</p>
-                <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 900 }}>{stats.total.toLocaleString()} ₽</h2>
-                <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#6b7280' }}>Записей в журнале: {carRecords.length}</p>
+              <div style={{ textAlign: 'right', fontSize: '10px', color: '#999' }}>
+                Дата: {new Date().toLocaleDateString('ru-RU')}
               </div>
             </div>
 
-            <table style={{ width: '100%' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
+              <div className="car-info">
+                <p style={{ margin: '0 0 5px', fontSize: '9px', color: '#4f46e5', fontWeight: 900 }}>АВТОМОБИЛЬ</p>
+                <h2>{activeCar.make} {activeCar.model}</h2>
+                <p style={{ margin: '5px 0 0', fontSize: '12px', fontWeight: 700 }}>{activeCar.licensePlate}</p>
+                <p style={{ margin: '3px 0 0', fontSize: '10px', color: '#666' }}>VIN: {activeCar.vin || '—'}</p>
+              </div>
+              <div className="stats-info">
+                <p style={{ margin: '0 0 5px', fontSize: '9px', color: '#4f46e5', fontWeight: 900 }}>ИТОГО РАСХОДОВ</p>
+                <h2 style={{ fontSize: '24px' }}>{stats.total.toLocaleString()} ₽</h2>
+                <p style={{ margin: '5px 0 0', fontSize: '10px', color: '#666' }}>Количество записей: {carRecords.length}</p>
+              </div>
+            </div>
+
+            <table>
               <thead>
                 <tr>
-                  <th style={{ fontSize: '10px', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>ДАТА</th>
-                  <th style={{ fontSize: '10px', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>КАТЕГОРИЯ</th>
-                  <th style={{ fontSize: '10px', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>ОПИСАНИЕ</th>
-                  <th style={{ fontSize: '10px', color: '#6b7280', borderBottom: '2px solid #e5e7eb', textAlign: 'right' }}>СУММА</th>
+                  <th>ДАТА</th>
+                  <th>КАТЕГОРИЯ</th>
+                  <th>ОПИСАНИЕ</th>
+                  <th style={{ textAlign: 'right' }}>СУММА</th>
                 </tr>
               </thead>
               <tbody>
                 {carRecords.map(r => (
                   <tr key={r.id}>
-                    <td style={{ fontSize: '11px', fontWeight: 500 }}>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
-                    <td style={{ fontSize: '10px', fontWeight: 700, color: '#4f46e5' }}>{CATEGORIES[r.type]?.label.toUpperCase()}</td>
-                    <td style={{ fontSize: '11px' }}>{r.description}</td>
-                    <td style={{ fontSize: '11px', fontWeight: 800, textAlign: 'right' }}>{r.amount.toLocaleString()} ₽</td>
+                    <td>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
+                    <td style={{ fontWeight: 700, color: '#4f46e5' }}>{CATEGORIES[r.type]?.label || r.type}</td>
+                    <td>{r.description}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 800 }}>{r.amount.toLocaleString()} ₽</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div style={{ marginTop: 'auto', paddingTop: '40px', textAlign: 'center' }}>
-              <p style={{ fontSize: '9px', color: '#d1d5db', fontWeight: 700, letterSpacing: '1px' }}>AUTOAI INTELLECTUAL DIAGNOSTICS SYSTEM • GENERATED VIA TELEGRAM MINI APP</p>
+            <div className="footer">
+              GENERATED BY AUTOAI TELEGRAM MINI APP • VERSION 4.2.12
             </div>
           </div>
         )}
@@ -342,10 +344,13 @@ export const AdvancedMaintenanceJournal = ({
 
       <AnimatePresence>
         {isGeneratingPdf && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6">
             <div className="bg-white p-10 rounded-[40px] shadow-2xl flex flex-col items-center gap-6 max-w-xs w-full text-center">
-              <Loader2 className="animate-spin text-indigo-600" size={48} />
-              <p className="text-sm font-black uppercase tracking-widest text-slate-900 mb-2">Создание PDF отчета</p>
+              <Loader2 className="animate-spin text-indigo-600" size={56} />
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-900 mb-2">Генерация PDF</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Обработка данных и очистка стилей для Telegram...</p>
+              </div>
             </div>
           </motion.div>
         )}
@@ -373,9 +378,9 @@ export const AdvancedMaintenanceJournal = ({
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <button onClick={() => handleGeneratePdf(false)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50"><Download size={14} /> PDF</button>
-              <button onClick={() => handleGeneratePdf(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"><Send size={14} /> В Telegram</button>
-              <button onClick={() => setShowAddModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest"><Plus size={16} /> Добавить</button>
+              <button onClick={() => handleGeneratePdf(false)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"><Download size={14} /> PDF</button>
+              <button onClick={() => handleGeneratePdf(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"><Send size={14} /> В Telegram</button>
+              <button onClick={() => setShowAddModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all"><Plus size={16} /> Добавить</button>
             </div>
           </div>
 
@@ -392,10 +397,10 @@ export const AdvancedMaintenanceJournal = ({
 
           <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between gap-4">
-              <h3 className="font-black text-slate-900 uppercase tracking-tighter text-md flex items-center gap-2"><History size={18} /> История</h3>
+              <h3 className="font-black text-slate-900 uppercase tracking-tighter text-md flex items-center gap-2"><History size={18} /> История обслуживания</h3>
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
-                <input type="text" placeholder="Поиск..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full sm:w-48 bg-slate-50 border-none rounded-lg py-2 pl-9 pr-3 text-[11px] font-bold outline-none" />
+                <input type="text" placeholder="Поиск в истории..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full sm:w-48 bg-slate-50 border-none rounded-lg py-2 pl-9 pr-3 text-[11px] font-bold outline-none" />
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -426,21 +431,21 @@ export const AdvancedMaintenanceJournal = ({
                     })}
                   </tbody>
                 </table>
-              ) : <div className="py-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-widest">Записей не найдено</div>}
+              ) : <div className="py-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-widest">Журнал пуст</div>}
             </div>
           </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Loader2 className="animate-spin mb-4" />
-          <p className="text-xs font-black uppercase tracking-widest">Инициализация данных...</p>
+          <p className="text-[10px] font-black uppercase tracking-widest">Инициализация автомобиля...</p>
         </div>
       )}
 
       {/* Add Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl relative z-10">
               <div className="flex justify-between items-center mb-6">
@@ -468,7 +473,7 @@ export const AdvancedMaintenanceJournal = ({
                   <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Сумма (₽)</label>
                   <input name="amount" type="number" required className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none" placeholder="0" />
                 </div>
-                <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-colors">Сохранить</button>
+                <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-colors">Сохранить в журнале</button>
               </form>
             </motion.div>
           </div>
