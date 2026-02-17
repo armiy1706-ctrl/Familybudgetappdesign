@@ -321,17 +321,41 @@ export const AdvancedMaintenanceJournal = ({
     }
 
     setIsGeneratingPdf(true);
+    
+    // THE ULTIMATE FIX FOR OKLCH ERROR: 
+    // We must ensure html2canvas DOES NOT see any oklch values.
+    // We'll temporarily strip problematic CSS variables from the entire document.
+    const styleTag = document.createElement('style');
+    styleTag.innerHTML = `
+      * { 
+        --tw-ring-color: transparent !important; 
+        --tw-shadow: 0 0 #0000 !important;
+        --tw-shadow-colored: 0 0 #0000 !important;
+        --tw-ring-shadow: 0 0 #0000 !important;
+        --tw-ring-offset-shadow: 0 0 #0000 !important;
+        --tw-inset-ring-shadow: 0 0 #0000 !important;
+        --tw-ring-offset-color: transparent !important;
+      }
+    `;
+    document.head.appendChild(styleTag);
+
     const opt = {
-      margin: 10,
+      margin: 0, // Set to 0 because we handle padding inside the template
       filename: `AutoAI_Report_${activeCar.plate || 'CAR'}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        logging: false,
+        letterRendering: true,
+        // Ensure we don't pick up background of the modal
+        backgroundColor: '#ffffff'
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       if (shouldSendToTelegram) {
-        // More robust way to handle datauristring to avoid "worker error"
         const pdfBlob = await h2p().set(opt).from(element).outputPdf('blob');
         
         if (pdfBlob) {
@@ -340,6 +364,7 @@ export const AdvancedMaintenanceJournal = ({
             const base64data = reader.result as string;
             onSendToTelegram?.(base64data, `${activeCar.make} ${activeCar.model}`);
             setIsGeneratingPdf(false);
+            document.head.removeChild(styleTag);
           };
           reader.readAsDataURL(pdfBlob);
         } else {
@@ -349,11 +374,14 @@ export const AdvancedMaintenanceJournal = ({
         await h2p().set(opt).from(element).save();
         toast.success("Отчет сохранен на устройство");
         setIsGeneratingPdf(false);
+        document.head.removeChild(styleTag);
       }
     } catch (err: any) {
       console.error("PDF Generation Detailed Error:", err);
+      // Fallback: If it still fails, try to alert user
       toast.error(`Ошибка PDF: ${err.message || 'Сбой генерации'}`);
       setIsGeneratingPdf(false);
+      if (document.head.contains(styleTag)) document.head.removeChild(styleTag);
     }
   };
 
@@ -766,30 +794,32 @@ export const AdvancedMaintenanceJournal = ({
               </div>
 
               <div className="flex-1 overflow-y-auto p-10 bg-slate-200/50">
-                {/* The actual element to be turned into PDF - Using ONLY HEX styles to avoid html2canvas OKLCH errors */}
+                {/* Fixed A4 Container with strict HEX styles and no Tailwind classes */}
                 <div 
                   id="full-report-content" 
                   style={{ 
                     backgroundColor: '#ffffff', 
                     color: '#0f172a', 
-                    padding: '48px', 
+                    padding: '40px', 
                     margin: '0 auto', 
-                    maxWidth: '210mm', 
+                    width: '210mm', 
                     minHeight: '297mm',
-                    fontFamily: 'sans-serif'
+                    fontFamily: 'sans-serif',
+                    boxSizing: 'border-box',
+                    overflow: 'hidden',
+                    position: 'relative'
                   }}
-                  className="shadow-xl"
                 >
                   {/* Report Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '4px solid #4f46e5', paddingBottom: '32px', marginBottom: '40px' }}>
-                    <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '4px solid #4f46e5', paddingBottom: '30px', marginBottom: '40px' }}>
+                    <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                        <div style={{ width: '40px', height: '40px', backgroundColor: '#4f46e5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyCenter: 'center', color: '#ffffff' }}>
-                          <TrendingUp size={24} style={{ margin: 'auto' }} />
+                        <div style={{ width: '40px', height: '40px', backgroundColor: '#4f46e5', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                          <TrendingUp size={24} />
                         </div>
-                        <h1 style={{ fontSize: '30px', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>AutoAI Report</h1>
+                        <h1 style={{ fontSize: '28px', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', margin: 0, color: '#0f172a' }}>AutoAI Report</h1>
                       </div>
-                      <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Smart Automotive Intelligence Systems</p>
+                      <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Smart Automotive Intelligence Systems</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>Дата формирования</p>
@@ -798,47 +828,47 @@ export const AdvancedMaintenanceJournal = ({
                   </div>
 
                   {/* Car Identity */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '40px' }}>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '8px', margin: 0 }}>Автомобиль</p>
-                      <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{(activeCar as any).make} {(activeCar as any).model}</h2>
-                      <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#64748b', marginTop: '4px', margin: 0 }}>{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
+                  <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
+                    <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
+                      <p style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '6px', margin: 0 }}>Автомобиль</p>
+                      <h2 style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', margin: 0, lineHeight: 1.2 }}>{(activeCar as any).make} {(activeCar as any).model}</h2>
+                      <p style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginTop: '4px', margin: 0 }}>{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
                     </div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '8px', margin: 0 }}>Идентификация</p>
+                    <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
+                      <p style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '6px', margin: 0 }}>Идентификация</p>
                       <p style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '-0.025em', margin: 0 }}>{(activeCar as any).plate || 'БЕЗ НОМЕРА'}</p>
-                      <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#94a3b8', marginTop: '4px', fontFamily: 'monospace', wordBreak: 'break-all', margin: 0 }}>{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
+                      <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginTop: '4px', fontFamily: 'monospace', wordBreak: 'break-all', margin: 0 }}>{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
                     </div>
                   </div>
 
                   {/* Stats Summary */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '40px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '40px' }}>
                     {[
                       { label: 'Общие затраты', value: `${(stats.total || 0).toLocaleString()} ₽`, color: '#4f46e5', bg: '#f5f3ff' },
                       { label: 'Записей', value: carRecords.length, color: '#0f172a', bg: '#ffffff' },
                       { label: 'Пробег', value: `${((activeCar as any).mileage || 0).toLocaleString()} км`, color: '#0f172a', bg: '#ffffff' },
                       { label: 'ТО / Сервис', value: `${(stats.byType.service || 0).toLocaleString()} ₽`, color: '#10b981', bg: '#ffffff' }
                     ].map((stat, idx) => (
-                      <div key={idx} style={{ textAlign: 'center', padding: '16px', border: '1px solid #f1f5f9', borderRadius: '16px', backgroundColor: stat.bg }}>
-                        <p style={{ fontSize: '9px', fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>{stat.label}</p>
-                        <p style={{ fontSize: '18px', fontWeight: '900', color: stat.color, margin: 0 }}>{stat.value}</p>
+                      <div key={idx} style={{ flex: 1, textAlign: 'center', padding: '12px', border: '1px solid #f1f5f9', borderRadius: '12px', backgroundColor: stat.bg }}>
+                        <p style={{ fontSize: '8px', fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>{stat.label}</p>
+                        <p style={{ fontSize: '16px', fontWeight: '900', color: stat.color, margin: 0 }}>{stat.value}</p>
                       </div>
                     ))}
                   </div>
 
                   {/* Main History Table */}
-                  <div style={{ marginBottom: '48px' }}>
-                    <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '6px', height: '16px', backgroundColor: '#4f46e5', borderRadius: '999px' }} />
+                  <div style={{ marginBottom: '40px' }}>
+                    <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '4px', height: '14px', backgroundColor: '#4f46e5', borderRadius: '10px' }} />
                       Подробная история операций
                     </h3>
-                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                       <thead>
                         <tr style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
-                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', borderTopLeftRadius: '12px' }}>Дата</th>
-                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Категория</th>
-                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Описание работ</th>
-                          <th style={{ padding: '16px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'right', borderTopRightRadius: '12px' }}>Сумма</th>
+                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', width: '90px' }}>Дата</th>
+                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Тип</th>
+                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Описание работ</th>
+                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right', width: '100px' }}>Сумма</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -854,14 +884,14 @@ export const AdvancedMaintenanceJournal = ({
                           
                           return (
                             <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '16px', fontSize: '12px', fontWeight: 'bold', color: '#64748b', whiteSpace: 'nowrap' }}>{r.date}</td>
-                              <td style={{ padding: '16px' }}>
-                                <span style={{ color: pColor.text, backgroundColor: pColor.bg, fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 8px', borderRadius: '4px' }}>
+                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>{r.date}</td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{ color: pColor.text, backgroundColor: pColor.bg, fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', padding: '3px 6px', borderRadius: '4px' }}>
                                   {cat.label}
                                 </span>
                               </td>
-                              <td style={{ padding: '16px', fontSize: '12px', fontWeight: 'bold', color: '#0f172a', lineHeight: '1.5' }}>{r.description}</td>
-                              <td style={{ padding: '16px', fontSize: '12px', fontWeight: '900', color: '#0f172a', textAlign: 'right', whiteSpace: 'nowrap' }}>{(r.amount || 0).toLocaleString()} ₽</td>
+                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', color: '#0f172a', lineHeight: '1.4', wordBreak: 'break-word' }}>{r.description}</td>
+                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: '900', color: '#0f172a', textAlign: 'right' }}>{(r.amount || 0).toLocaleString()} ₽</td>
                             </tr>
                           );
                         }) : (
@@ -874,14 +904,12 @@ export const AdvancedMaintenanceJournal = ({
                   </div>
 
                   {/* Report Footer */}
-                  <div style={{ marginTop: 'auto', paddingTop: '40px', borderTop: '1px solid #f1f5f9' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.5 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <TrendingUp size={16} color="#4f46e5" />
-                        <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#0f172a' }}>Generated by AutoAI Core</span>
-                      </div>
-                      <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#94a3b8', margin: 0 }}>ID: {activeCar.id} • {new Date().toLocaleTimeString()}</p>
+                  <div style={{ marginTop: 'auto', paddingTop: '30px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.6 }}>
+                      <TrendingUp size={14} color="#4f46e5" />
+                      <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#0f172a' }}>AutoAI Core Generation</span>
                     </div>
+                    <p style={{ fontSize: '9px', fontWeight: 'bold', color: '#94a3b8', margin: 0 }}>ID: {activeCar.id.substring(0,8)} • {new Date().toLocaleTimeString()}</p>
                   </div>
                 </div>
               </div>
