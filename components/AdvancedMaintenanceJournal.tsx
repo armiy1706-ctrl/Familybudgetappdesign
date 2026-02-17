@@ -34,7 +34,6 @@ import {
 } from 'recharts';
 import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 // --- Interfaces ---
 
@@ -94,7 +93,6 @@ export const AdvancedMaintenanceJournal = ({
   // Form State for OCR
   const [formAmount, setFormAmount] = useState<string>('');
   const [formDate, setFormDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [isOcrLoading, setIsOcrLoading] = useState(false);
 
   // Camera & Receipt state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -287,62 +285,64 @@ export const AdvancedMaintenanceJournal = ({
       return;
     }
 
+    // Limit photos if there are too many to prevent crash
+    const totalPhotos = carRecords.filter(r => r.receiptImage).length;
+    if (totalPhotos > 30) {
+      toast.warning("У вас очень много фото. Генерация может занять до 1 минуты или вызвать зависание.");
+    }
+
     setIsGeneratingPdf(true);
     
+    // Aggressive optimization for "many photos" cases
     const opt = {
       margin: [10, 10, 10, 10],
       filename: `AutoAI_Report_${activeCar.licensePlate || 'CAR'}.pdf`,
-      image: { type: 'jpeg', quality: 0.8 },
+      image: { type: 'jpeg', quality: 0.6 }, // Lower quality significantly helps memory
       html2canvas: { 
-        scale: 1.5, 
+        scale: 1.0, // Scale 1.0 is safest for memory with many images
         useCORS: true, 
         allowTaint: true,
         logging: false,
-        letterRendering: true,
         backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: 0,
-        imageTimeout: 15000,
+        imageTimeout: 30000, // Longer timeout for many photos
       },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
     };
 
-    try {
-      // Use a fresh worker for each generation to avoid state pollution
-      const worker = h2p();
-      
-      if (shouldSendToTelegram) {
-        toast.info("Подготовка файла для Telegram...");
-        const pdfBlob = await worker.set(opt).from(element).outputPdf('blob');
+    // Use setTimeout to allow the browser to show the loading spinner first
+    setTimeout(async () => {
+      try {
+        const worker = h2p();
         
-        if (pdfBlob) {
-          // Check if file is too large for Telegram (limit ~50MB but realistic payload limit is lower)
-          if (pdfBlob.size > 15 * 1024 * 1024) {
-            toast.warning("Файл очень большой. Отправка может занять время.");
-          }
+        if (shouldSendToTelegram) {
+          toast.info("Сжимаем данные для Telegram...");
+          const pdfBlob = await worker.set(opt).from(element).outputPdf('blob');
           
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64data = reader.result as string;
-            onSendToTelegram?.(base64data, `${activeCar.make} ${activeCar.model}`);
-            setIsGeneratingPdf(false);
-          };
-          reader.onerror = () => {
-            throw new Error("Ошибка чтения файла");
-          };
-          reader.readAsDataURL(pdfBlob);
+          if (pdfBlob) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64data = reader.result as string;
+              onSendToTelegram?.(base64data, `${activeCar.make} ${activeCar.model}`);
+              setIsGeneratingPdf(false);
+            };
+            reader.onerror = () => {
+              toast.error("Ошибка при чтении файла");
+              setIsGeneratingPdf(false);
+            };
+            reader.readAsDataURL(pdfBlob);
+          }
+        } else {
+          await worker.set(opt).from(element).save();
+          toast.success("Отчет сохранен");
+          setIsGeneratingPdf(false);
         }
-      } else {
-        await worker.set(opt).from(element).save();
-        toast.success("Отчет сохранен");
+      } catch (err: any) {
+        console.error("CRITICAL PDF ERROR:", err);
         setIsGeneratingPdf(false);
+        toast.error("Сбой: слишком много фото для текущей памяти браузера. Попробуйте удалить часть записей или использовать экспорт в ZIP.");
       }
-    } catch (err: any) {
-      console.error("CRITICAL PDF ERROR:", err);
-      setIsGeneratingPdf(false);
-      toast.error("Сбой генерации: возможно, слишком много фото. Попробуйте скачать отчет локально.");
-    }
+    }, 800);
   };
 
   if (cars.length === 0) {
@@ -365,7 +365,7 @@ export const AdvancedMaintenanceJournal = ({
         onCapture={handleCameraCapture} 
       />
 
-      {/* Car Tabs - Fleet Management style */}
+      {/* Car Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {cars.map(car => (
             <button
@@ -390,14 +390,13 @@ export const AdvancedMaintenanceJournal = ({
 
       {activeCar && (
         <div className="space-y-8">
-          {/* Dashboard Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                 {activeCar.make} {activeCar.model}
                 <span className="text-xs bg-slate-900 text-white px-3 py-1 rounded-lg font-black tracking-widest uppercase">{activeCar.licensePlate}</span>
               </h2>
-              <p className="text-slate-400 font-medium text-sm mt-1">Всего записей в журнале: {carRecords.length}</p>
+              <p className="text-slate-400 font-medium text-sm mt-1">Всего записей: {carRecords.length}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
               <button 
@@ -418,135 +417,62 @@ export const AdvancedMaintenanceJournal = ({
                   setFormDate(new Date().toISOString().split('T')[0]);
                   setShowAddModal(true);
                 }}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
               >
                 <Plus size={16} /> Новая запись
               </button>
             </div>
           </div>
 
-          {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="lg:col-span-1 bg-indigo-600 p-6 rounded-[32px] text-white shadow-xl shadow-indigo-100 flex flex-col justify-between">
               <div>
                 <DollarSign size={24} className="mb-4 opacity-50" />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-80">Общие затраты</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-80">Всего затрат</p>
                 <h4 className="text-2xl font-black tracking-tighter">{stats.total.toLocaleString()} ₽</h4>
               </div>
-              <div className="mt-6 pt-6 border-t border-white/10">
-                <div className="flex items-center gap-2 text-[10px] font-bold">
-                  <TrendingUp size={12} className="text-emerald-400" />
-                  <span>На основе {carRecords.length} операций</span>
-                </div>
-              </div>
             </div>
-            
-            <StatCard 
-              label="🔧 Ремонт" 
-              value={`${(stats.byType.repair || 0).toLocaleString()} ₽`} 
-              icon={Wrench} 
-              colorClass="text-rose-600" 
-              bgColorClass="bg-rose-50" 
-            />
-            <StatCard 
-              label="⚙️ Запчасти" 
-              value={`${(stats.byType.parts || 0).toLocaleString()} ₽`} 
-              icon={Cog} 
-              colorClass="text-amber-600" 
-              bgColorClass="bg-amber-50" 
-            />
-            <StatCard 
-              label="⛽ Топливо" 
-              value={`${(stats.byType.fuel || 0).toLocaleString()} ₽`} 
-              icon={Fuel} 
-              colorClass="text-indigo-600" 
-              bgColorClass="bg-indigo-50" 
-            />
-            <StatCard 
-              label="🔩 ТО" 
-              value={`${(stats.byType.service || 0).toLocaleString()} ₽`} 
-              icon={Shield} 
-              colorClass="text-emerald-600" 
-              bgColorClass="bg-emerald-50" 
-            />
+            <StatCard label="🔧 Ремонт" value={`${(stats.byType.repair || 0).toLocaleString()} ₽`} icon={Wrench} colorClass="text-rose-600" bgColorClass="bg-rose-50" />
+            <StatCard label="⚙️ Запчасти" value={`${(stats.byType.parts || 0).toLocaleString()} ₽`} icon={Cog} colorClass="text-amber-600" bgColorClass="bg-amber-50" />
+            <StatCard label="⛽ Топливо" value={`${(stats.byType.fuel || 0).toLocaleString()} ₽`} icon={Fuel} colorClass="text-indigo-600" bgColorClass="bg-indigo-50" />
+            <StatCard label="🔩 ТО" value={`${(stats.byType.service || 0).toLocaleString()} ₽`} icon={Shield} colorClass="text-emerald-600" bgColorClass="bg-emerald-50" />
           </div>
 
-          {/* Analytics and History */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Visual Analytics */}
-            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-fit">
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                  <PieIcon size={20} />
-                </div>
-                <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Распределение трат</h3>
+                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><PieIcon size={20} /></div>
+                <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Аналитика</h3>
               </div>
-              
-              <div className="h-[240px] relative">
+              <div className="h-[240px]">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
-                        data={chartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
+                      <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                        {chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
                       </Pie>
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', fontSize: '12px', fontWeight: 'bold' }} 
-                      />
-                      <Legend 
-                        verticalAlign="bottom" 
-                        height={36} 
-                        iconType="circle" 
-                        formatter={(value) => <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">{value}</span>}
-                      />
+                      <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', fontSize: '12px', fontWeight: 'bold' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" formatter={(value) => <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">{value}</span>}/>
                     </PieChart>
                   </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-300">
-                    <PieIcon size={48} className="opacity-20 mb-2" />
-                    <p className="text-[10px] font-black uppercase tracking-widest">Нет данных для графика</p>
-                  </div>
-                )}
+                ) : <div className="h-full flex items-center justify-center text-slate-300 text-xs font-bold uppercase">Нет данных</div>}
               </div>
             </div>
 
-            {/* History Table */}
-            <div className="lg:col-span-2 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-8 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center">
-                    <History size={20} />
-                  </div>
-                  <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">История операций</h3>
-                </div>
-                <div className="relative w-full sm:w-auto">
+            <div className="lg:col-span-2 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-8 border-b border-slate-50 flex flex-col sm:flex-row justify-between gap-4">
+                <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg flex items-center gap-3"><History size={20} /> История</h3>
+                <div className="relative">
                   <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                  <input 
-                    type="text" 
-                    placeholder="Поиск..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full sm:w-64 bg-slate-50 border-none rounded-xl py-3 pl-10 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500 outline-none transition-all"
-                  />
+                  <input type="text" placeholder="Поиск..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full sm:w-64 bg-slate-50 border-none rounded-xl py-3 pl-10 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500 outline-none" />
                 </div>
               </div>
-              
-              <div className="overflow-x-auto flex-1">
+              <div className="overflow-x-auto">
                 {carRecords.length > 0 ? (
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-slate-50/30">
                         <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Операция</th>
-                        <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Дата</th>
                         <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Сумма</th>
                         <th className="px-8 py-4 text-center"></th>
                       </tr>
@@ -554,197 +480,98 @@ export const AdvancedMaintenanceJournal = ({
                     <tbody className="divide-y divide-slate-50">
                       {carRecords.map(record => {
                         const cat = CATEGORIES[record.type];
-                        const Icon = cat.icon;
                         return (
-                          <tr key={record.id} className="hover:bg-slate-50/50 transition-colors group">
-                            <td className="px-8 py-5">
-                              <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-xl ${cat.bgColor} ${cat.color} flex items-center justify-center shrink-0`}>
-                                  <Icon size={18} />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight leading-tight">{record.description}</p>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{cat.label}</p>
-                                    {record.receiptImage && (
-                                      <button 
-                                        onClick={() => openReceiptView(record.receiptImage!)}
-                                        className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded transition-all"
-                                      >
-                                        <ImageIcon size={10} /> Чек
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
+                          <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-8 py-5 flex items-center gap-4">
+                              <div className={`w-10 h-10 rounded-xl ${cat.bgColor} ${cat.color} flex items-center justify-center shrink-0`}><cat.icon size={18} /></div>
+                              <div>
+                                <p className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">{record.description}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(record.date).toLocaleDateString('ru-RU')} • {cat.label}</p>
                               </div>
                             </td>
-                            <td className="px-8 py-5 text-xs font-bold text-slate-500">
-                              {new Date(record.date).toLocaleDateString('ru-RU')}
-                            </td>
-                            <td className="px-8 py-5 text-right">
-                              <span className={`inline-flex items-center px-3 py-1.5 rounded-xl font-black text-xs ${cat.bgColor} ${cat.color}`}>
-                                {record.amount.toLocaleString()} ₽
-                              </span>
-                            </td>
+                            <td className="px-8 py-5 text-right"><span className={`inline-flex items-center px-3 py-1.5 rounded-xl font-black text-xs ${cat.bgColor} ${cat.color}`}>{record.amount.toLocaleString()} ₽</span></td>
                             <td className="px-8 py-5 text-center">
-                              <button 
-                                onClick={() => deleteRecord(record.id)}
-                                className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                              <div className="flex items-center gap-2 justify-center">
+                                {record.receiptImage && <button onClick={() => openReceiptView(record.receiptImage!)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg"><ImageIcon size={16} /></button>}
+                                <button onClick={() => deleteRecord(record.id)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
+                              </div>
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
-                ) : (
-                  <div className="py-20 flex flex-col items-center justify-center text-slate-300">
-                    <FileText size={48} className="opacity-20 mb-4" />
-                    <p className="text-[10px] font-black uppercase tracking-widest">Записей не найдено</p>
-                  </div>
-                )}
+                ) : <div className="py-20 text-center text-slate-300 text-xs font-bold uppercase tracking-widest">Записей не найдено</div>}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add Record Modal */}
+      {/* Modals */}
       <AnimatePresence>
         {showAddModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
-              animate={{ scale: 1, opacity: 1, y: 0 }} 
-              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-              className="bg-white rounded-[40px] w-full max-w-lg p-10 shadow-2xl relative z-10 overflow-y-auto max-h-[90vh]"
-            >
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[40px] w-full max-w-lg p-10 shadow-2xl relative z-10 overflow-y-auto max-h-[90vh]">
               <div className="flex justify-between items-center mb-8">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
-                    <Plus size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Новая запись</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Добавление в журнал ТО</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowAddModal(false)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-slate-900 transition-colors">
-                  <X size={24} />
-                </button>
+                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Новая запись</h3>
+                <button onClick={() => setShowAddModal(false)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-slate-900"><X size={24} /></button>
               </div>
-
               <form onSubmit={handleAddRecord} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Тип операции</label>
-                    <select 
-                      name="type" 
-                      required
-                      className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none appearance-none cursor-pointer"
-                    >
-                      {Object.entries(CATEGORIES).map(([key, cat]) => (
-                        <option key={key} value={key}>{cat.label}</option>
-                      ))}
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Тип</label>
+                    <select name="type" required className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none">
+                      {Object.entries(CATEGORIES).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Дата</label>
-                    <div className="relative">
-                      <input 
-                        name="date" 
-                        type="date" 
-                        required
-                        value={formDate}
-                        onChange={(e) => setFormDate(e.target.value)}
-                        className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all"
-                      />
-                    </div>
+                    <input name="date" type="date" required value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none" />
                   </div>
                 </div>
-
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Описание работ / покупки</label>
-                  <input 
-                    name="description" 
-                    type="text" 
-                    required
-                    placeholder="Напр: Замена масла и фильтра"
-                    className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none"
-                  />
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Описание работ</label>
+                  <input name="description" type="text" required placeholder="Замена масла..." className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none" />
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Сумма (₽)</label>
-                  <div className="relative">
-                    <DollarSign size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" />
-                    <input 
-                      name="amount" 
-                      type="number" 
-                      required
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formAmount}
-                      onChange={(e) => setFormAmount(e.target.value)}
-                      className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all"
-                    />
-                  </div>
+                  <input name="amount" type="number" required placeholder="0" className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none" />
                 </div>
-
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Документ (наряд-заказ / чек)</label>
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Документ</label>
                   {tempReceiptImage ? (
                     <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-lg border border-slate-100">
                       <img src={tempReceiptImage} alt="Документ" className="w-full h-full object-cover" />
-                      <button 
-                        type="button"
-                        onClick={() => setTempReceiptImage(null)}
-                        className="absolute top-3 right-3 p-2 bg-rose-500 text-white rounded-xl shadow-lg hover:bg-rose-600 transition-colors"
-                      >
-                        <X size={16} />
-                      </button>
+                      <button type="button" onClick={() => setTempReceiptImage(null)} className="absolute top-3 right-3 p-2 bg-rose-500 text-white rounded-xl"><X size={16} /></button>
                     </div>
                   ) : (
-                    <button 
-                      type="button"
-                      onClick={() => setIsCameraOpen(true)}
-                      className="w-full flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all"
-                    >
+                    <button type="button" onClick={() => setIsCameraOpen(true)} className="w-full flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all">
                       <Camera size={24} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Сфотографировать документ</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest">Сфотографировать</span>
                     </button>
                   )}
                 </div>
-
-                <button 
-                  type="submit"
-                  className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 mt-4 active:scale-[0.98]"
-                >
-                  Добавить запись
-                </button>
+                <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 mt-4">Сохранить запись</button>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* Photo Viewer Modal */}
       <AnimatePresence>
         {isPhotoViewOpen && selectedReceipt && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsPhotoViewOpen(false)} className="absolute inset-0 bg-slate-900/90 backdrop-blur-md" />
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative z-10 max-w-2xl w-full">
-              <button onClick={() => setIsPhotoViewOpen(false)} className="absolute -top-12 right-0 p-2 text-white hover:text-indigo-400 transition-colors"><X size={32} /></button>
+              <button onClick={() => setIsPhotoViewOpen(false)} className="absolute -top-12 right-0 p-2 text-white hover:text-indigo-400"><X size={32} /></button>
               <img src={selectedReceipt} alt="Receipt" className="w-full h-auto rounded-3xl shadow-2xl border border-white/10" />
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* PDF Report Preview Modal */}
       <AnimatePresence>
         {showPdfPreview && activeCar && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -752,196 +579,81 @@ export const AdvancedMaintenanceJournal = ({
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }} className="bg-white rounded-[40px] w-full max-w-4xl p-0 shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden">
               <div className="px-10 py-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
-                    <FileText size={24} />
-                  </div>
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><FileText size={24} /></div>
                   <div>
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Предпросмотр отчета</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Полная история обслуживания</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Экспорт истории обслуживания</p>
                   </div>
                 </div>
-                <button onClick={() => setShowPdfPreview(false)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 transition-colors">
-                  <X size={24} />
-                </button>
+                <button onClick={() => setShowPdfPreview(false)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900"><X size={24} /></button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-10 bg-slate-200/50">
-                {/* Fixed A4 Container with strict HEX styles and no Tailwind classes */}
-                <div 
-                  id="full-report-content" 
-                  style={{ 
-                    backgroundColor: '#ffffff', 
-                    color: '#0f172a', 
-                    padding: '40px', 
-                    margin: '0 auto', 
-                    width: '190mm', 
-                    fontFamily: 'sans-serif',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  {/* Report Header */}
+                <div id="full-report-content" style={{ backgroundColor: '#ffffff', color: '#0f172a', padding: '40px', margin: '0 auto', width: '190mm', fontFamily: 'sans-serif', boxSizing: 'border-box' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '4px solid #4f46e5', paddingBottom: '30px', marginBottom: '40px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                        <div style={{ width: '40px', height: '40px', backgroundColor: '#4f46e5', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
-                          <TrendingUp size={24} />
-                        </div>
-                        <h1 style={{ fontSize: '28px', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', margin: 0, color: '#0f172a' }}>AutoAI Отчёт</h1>
-                      </div>
-                      <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Интеллектуальные автомобильные системы</p>
+                    <div>
+                      <h1 style={{ fontSize: '28px', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>AutoAI Отчёт</h1>
+                      <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Интеллектуальный журнал ТО</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>Дата формирования</p>
-                      <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>{new Date().toLocaleDateString('ru-RU')}</p>
+                      <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#94a3b8', margin: 0 }}>Дата: {new Date().toLocaleDateString('ru-RU')}</p>
                     </div>
                   </div>
 
-                  {/* Car Identity */}
                   <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
                     <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '6px', margin: 0 }}>Автомобиль</p>
-                      <h2 style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', margin: 0, lineHeight: 1.2 }}>{(activeCar as any).make} {(activeCar as any).model}</h2>
-                      <p style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginTop: '4px', margin: 0 }}>{(activeCar as any).year || '—'} г.в. • {(activeCar as any).transmission === 'automatic' ? 'АКПП' : 'МКПП'}</p>
-                    </div>
-                    <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
-                      <p style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '6px', margin: 0 }}>Идентификация</p>
-                      <p style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '-0.025em', margin: 0 }}>
-                        {activeCar.licensePlate ? activeCar.licensePlate : 'НОМЕР НЕ УКАЗАН'}
-                      </p>
-                      <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginTop: '4px', fontFamily: 'monospace', wordBreak: 'break-all', margin: 0 }}>
-                        VIN: {activeCar.vin ? activeCar.vin : 'ОТСУТСТВУЕТ'}
-                      </p>
+                      <p style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', margin: '0 0 6px 0' }}>Автомобиль</p>
+                      <h2 style={{ fontSize: '22px', fontWeight: '900', margin: 0 }}>{activeCar.make} {activeCar.model}</h2>
+                      <p style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b', margin: '4px 0 0 0' }}>{activeCar.year} г.в. • {activeCar.licensePlate}</p>
                     </div>
                   </div>
 
-                  {/* Stats Summary */}
-                  <div style={{ display: 'flex', gap: '12px', marginBottom: '40px' }}>
-                    {[
-                      { label: 'Общие затраты', value: `${(stats.total || 0).toLocaleString()} ₽`, color: '#4f46e5', bg: '#f5f3ff' },
-                      { label: 'Записей', value: carRecords.length, color: '#0f172a', bg: '#ffffff' },
-                      { label: 'Пробег', value: `${((activeCar as any).mileage || 0).toLocaleString()} км`, color: '#0f172a', bg: '#ffffff' },
-                      { label: 'ТО / Сервис', value: `${(stats.byType.service || 0).toLocaleString()} ₽`, color: '#10b981', bg: '#ffffff' }
-                    ].map((stat, idx) => (
-                      <div key={idx} style={{ flex: 1, textAlign: 'center', padding: '12px', border: '1px solid #f1f5f9', borderRadius: '12px', backgroundColor: stat.bg }}>
-                        <p style={{ fontSize: '8px', fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>{stat.label}</p>
-                        <p style={{ fontSize: '16px', fontWeight: '900', color: stat.color, margin: 0 }}>{stat.value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Main History Table */}
-                  <div style={{ marginBottom: '40px' }}>
-                    <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '4px', height: '14px', backgroundColor: '#4f46e5', borderRadius: '10px' }} />
-                      Подробная история операций
-                    </h3>
-                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                      <thead>
-                        <tr style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
-                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', width: '90px' }}>Дата</th>
-                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Тип</th>
-                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Описание работ</th>
-                          <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right', width: '100px' }}>Сумма</th>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                        <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'left' }}>Дата</th>
+                        <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'left' }}>Описание</th>
+                        <th style={{ padding: '12px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'right' }}>Сумма</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {carRecords.map((r, i) => (
+                        <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9', pageBreakInside: 'avoid' }}>
+                          <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold' }}>{r.date}</td>
+                          <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold' }}>{r.description}</td>
+                          <td style={{ padding: '12px', fontSize: '11px', fontWeight: '900', textAlign: 'right' }}>{r.amount.toLocaleString()} ₽</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {carRecords.length > 0 ? carRecords.map((r, i) => {
-                          const cat = CATEGORIES[r.type] || CATEGORIES.service;
-                          const pdfColors: any = {
-                            repair: { text: '#e11d48', bg: '#fff1f2' },
-                            parts: { text: '#d97706', bg: '#fffbeb' },
-                            fuel: { text: '#4f46e5', bg: '#f5f3ff' },
-                            service: { text: '#059669', bg: '#ecfdf5' }
-                          };
-                          const pColor = pdfColors[r.type] || pdfColors.service;
-                          
-                          return (
-                            <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9', pageBreakInside: 'avoid' }}>
-                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>{r.date}</td>
-                              <td style={{ padding: '12px' }}>
-                                <span style={{ color: pColor.text, backgroundColor: pColor.bg, fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', padding: '3px 6px', borderRadius: '4px' }}>
-                                  {cat.label}
-                                </span>
-                              </td>
-                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', color: '#0f172a', lineHeight: '1.4', wordBreak: 'break-all', overflowWrap: 'break-word' }}>{r.description}</td>
-                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: '900', color: '#0f172a', textAlign: 'right' }}>{(r.amount || 0).toLocaleString()} ₽</td>
-                            </tr>
-                          );
-                        }) : (
-                          <tr>
-                            <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '12px' }}>Записи отсутствуют</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
 
-                  {/* Documents Gallery (Receipts) */}
                   {carRecords.some(r => r.receiptImage) && (
-                    <div style={{ marginTop: '40px', pageBreakBefore: 'auto' }}>
-                      <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '4px', height: '14px', backgroundColor: '#4f46e5', borderRadius: '10px' }} />
-                        Прикрепленные чеки и документы
-                      </h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ pageBreakBefore: 'auto' }}>
+                      <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', marginBottom: '20px', borderLeft: '4px solid #4f46e5', paddingLeft: '12px' }}>Прикрепленные документы</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
                         {carRecords.filter(r => r.receiptImage).map((r) => (
-                          <div key={r.id} style={{ width: '100%', border: '1px solid #f1f5f9', borderRadius: '12px', padding: '12px', backgroundColor: '#f8fafc', boxSizing: 'border-box', pageBreakInside: 'avoid', marginBottom: '15px' }}>
-                            <img 
-                              src={r.receiptImage} 
-                              crossOrigin="anonymous"
-                              style={{ 
-                                width: '100%', 
-                                maxHeight: '180mm',
-                                height: 'auto', 
-                                display: 'block', 
-                                borderRadius: '8px', 
-                                marginBottom: '10px', 
-                                backgroundColor: '#ffffff',
-                                imageRendering: 'auto',
-                                objectFit: 'contain'
-                              }} 
-                            />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px' }}>
-                              <div style={{ flex: 1 }}>
-                                <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 2px 0' }}>{r.description}</p>
-                                <p style={{ fontSize: '8px', fontWeight: '900', color: '#94a3b8', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{CATEGORIES[r.type].label}</p>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <p style={{ fontSize: '9px', fontWeight: '900', color: '#4f46e5', margin: '0 0 2px 0' }}>{r.date}</p>
-                                <p style={{ fontSize: '11px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{(r.amount || 0).toLocaleString()} ₽</p>
-                              </div>
+                          <div key={r.id} style={{ width: '100%', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '15px', backgroundColor: '#f8fafc', pageBreakInside: 'avoid' }}>
+                            <img src={r.receiptImage} style={{ width: '100%', maxHeight: '160mm', objectFit: 'contain', borderRadius: '12px', marginBottom: '10px', backgroundColor: '#ffffff' }} />
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <p style={{ fontSize: '11px', fontWeight: 'bold', margin: 0 }}>{r.description}</p>
+                              <p style={{ fontSize: '11px', fontWeight: '900', color: '#4f46e5', margin: 0 }}>{r.date} • {r.amount.toLocaleString()} ₽</p>
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-
-                  {/* Report Footer */}
-                  <div style={{ marginTop: 'auto', paddingTop: '30px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.6 }}>
-                      <TrendingUp size={14} color="#4f46e5" />
-                      <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#0f172a' }}>AutoAI Core Generation</span>
-                    </div>
-                    <p style={{ fontSize: '9px', fontWeight: 'bold', color: '#94a3b8', margin: 0 }}>ID: {activeCar.id.substring(0,8)} • {new Date().toLocaleTimeString()}</p>
-                  </div>
                 </div>
               </div>
 
               <div className="px-10 py-8 bg-white border-t border-slate-100 flex gap-4">
-                <button 
-                  onClick={() => handleGeneratePdf(false)}
-                  disabled={isGeneratingPdf}
-                  className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                >
-                  <Download size={20} /> {isGeneratingPdf ? 'Генерация...' : 'Скачать на устройство'}
+                <button onClick={() => handleGeneratePdf(false)} disabled={isGeneratingPdf} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />} 
+                  {isGeneratingPdf ? 'Сжатие...' : 'Скачать PDF'}
                 </button>
-                <button 
-                  onClick={() => handleGeneratePdf(true)}
-                  disabled={isGeneratingPdf}
-                  className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 disabled:opacity-50"
-                >
-                  <Send size={20} /> {isGeneratingPdf ? 'Подготовка...' : 'Отправить в Telegram бот'}
+                <button onClick={() => handleGeneratePdf(true)} disabled={isGeneratingPdf} className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isGeneratingPdf ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />} 
+                  {isGeneratingPdf ? 'Обработка...' : 'В Telegram бот'}
                 </button>
               </div>
             </motion.div>
