@@ -292,9 +292,9 @@ export const AdvancedMaintenanceJournal = ({
     const opt = {
       margin: [10, 10, 10, 10],
       filename: `AutoAI_Report_${activeCar.licensePlate || 'CAR'}.pdf`,
-      image: { type: 'jpeg', quality: 1.0 },
+      image: { type: 'jpeg', quality: 0.8 },
       html2canvas: { 
-        scale: 2, 
+        scale: 1.5, 
         useCORS: true, 
         allowTaint: true,
         logging: false,
@@ -305,7 +305,7 @@ export const AdvancedMaintenanceJournal = ({
         imageTimeout: 15000,
       },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
     };
 
     try {
@@ -885,28 +885,30 @@ export const AdvancedMaintenanceJournal = ({
                       </h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         {carRecords.filter(r => r.receiptImage).map((r) => (
-                          <div key={r.id} style={{ width: '100%', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '20px', backgroundColor: '#f8fafc', boxSizing: 'border-box', pageBreakInside: 'avoid', marginBottom: '20px' }}>
+                          <div key={r.id} style={{ width: '100%', border: '1px solid #f1f5f9', borderRadius: '12px', padding: '12px', backgroundColor: '#f8fafc', boxSizing: 'border-box', pageBreakInside: 'avoid', marginBottom: '15px' }}>
                             <img 
                               src={r.receiptImage} 
                               crossOrigin="anonymous"
                               style={{ 
                                 width: '100%', 
+                                maxHeight: '180mm',
                                 height: 'auto', 
                                 display: 'block', 
-                                borderRadius: '12px', 
-                                marginBottom: '15px', 
+                                borderRadius: '8px', 
+                                marginBottom: '10px', 
                                 backgroundColor: '#ffffff',
-                                imageRendering: 'auto'
+                                imageRendering: 'auto',
+                                objectFit: 'contain'
                               }} 
                             />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px' }}>
                               <div style={{ flex: 1 }}>
-                                <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 4px 0' }}>{r.description}</p>
-                                <p style={{ fontSize: '9px', fontWeight: '900', color: '#94a3b8', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{CATEGORIES[r.type].label}</p>
+                                <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 2px 0' }}>{r.description}</p>
+                                <p style={{ fontSize: '8px', fontWeight: '900', color: '#94a3b8', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{CATEGORIES[r.type].label}</p>
                               </div>
                               <div style={{ textAlign: 'right' }}>
-                                <p style={{ fontSize: '10px', fontWeight: '900', color: '#4f46e5', margin: '0 0 4px 0' }}>{r.date}</p>
-                                <p style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{(r.amount || 0).toLocaleString()} ₽</p>
+                                <p style={{ fontSize: '9px', fontWeight: '900', color: '#4f46e5', margin: '0 0 2px 0' }}>{r.date}</p>
+                                <p style={{ fontSize: '11px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{(r.amount || 0).toLocaleString()} ₽</p>
                               </div>
                             </div>
                           </div>
