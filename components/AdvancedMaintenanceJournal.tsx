@@ -910,6 +910,30 @@ export const AdvancedMaintenanceJournal = ({
                     </table>
                   </div>
 
+                  {/* Documents Gallery (Receipts) */}
+                  {carRecords.some(r => r.receiptImage) && (
+                    <div style={{ marginTop: '40px', pageBreakBefore: 'auto' }}>
+                      <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '4px', height: '14px', backgroundColor: '#4f46e5', borderRadius: '10px' }} />
+                        Прикрепленные чеки и документы
+                      </h3>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
+                        {carRecords.filter(r => r.receiptImage).map((r) => (
+                          <div key={r.id} style={{ width: 'calc(33.33% - 10px)', border: '1px solid #f1f5f9', borderRadius: '12px', padding: '10px', backgroundColor: '#f8fafc', boxSizing: 'border-box' }}>
+                            <img 
+                              src={r.receiptImage} 
+                              style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', marginBottom: '8px', display: 'block' }} 
+                            />
+                            <p style={{ fontSize: '7px', fontWeight: '900', color: '#94a3b8', margin: 0, textTransform: 'uppercase' }}>{r.date}</p>
+                            <p style={{ fontSize: '8px', fontWeight: 'bold', color: '#0f172a', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {r.description}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Report Footer */}
                   <div style={{ marginTop: 'auto', paddingTop: '30px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.6 }}>
