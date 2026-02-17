@@ -207,40 +207,7 @@ export const AdvancedMaintenanceJournal = ({
   const handleCameraCapture = async (imageData: string) => {
     setTempReceiptImage(imageData);
     setIsCameraOpen(false);
-    
-    // Trigger OCR
-    setIsOcrLoading(true);
-    toast.info("Запускаю ИИ-сканирование чека...");
-    
-    try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/ocr-receipt`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({ image: imageData })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.amount) setFormAmount(data.amount.toString());
-        if (data.date) setFormDate(data.date);
-        toast.success("Данные чека успешно распознаны!");
-      } else {
-        const errorData = await response.json();
-        if (errorData.isQuotaError) {
-          toast.error("Квота OpenAI исчерпана. Пожалуйста, обновите API ключ в настройках профиля.", { duration: 5000 });
-        } else {
-          toast.error("Не удалось распознать данные автоматически: " + (errorData.details || "Ошибка сервера"));
-        }
-      }
-    } catch (err) {
-      console.error("OCR Error:", err);
-      toast.error("Ошибка при связи с сервером распознавания");
-    } finally {
-      setIsOcrLoading(false);
-    }
+    toast.success('Документ успешно прикреплен к записи');
   };
 
   const openReceiptView = (image: string) => {
@@ -703,9 +670,8 @@ export const AdvancedMaintenanceJournal = ({
                         required
                         value={formDate}
                         onChange={(e) => setFormDate(e.target.value)}
-                        className={`w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all ${isOcrLoading ? 'opacity-50' : ''}`}
+                        className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all"
                       />
-                      {isOcrLoading && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" size={20} /></div>}
                     </div>
                   </div>
                 </div>
@@ -733,21 +699,34 @@ export const AdvancedMaintenanceJournal = ({
                       placeholder="0.00"
                       value={formAmount}
                       onChange={(e) => setFormAmount(e.target.value)}
-                      className={`w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all ${isOcrLoading ? 'opacity-50' : ''}`}
+                      className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 ring-indigo-500 outline-none transition-all"
                     />
-                    {isOcrLoading && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" size={20} /></div>}
                   </div>
                 </div>
 
-                <div className="pt-2">
-                  <button 
-                    type="button"
-                    onClick={() => setIsCameraOpen(true)}
-                    className="w-full flex items-center justify-center gap-3 py-4 border-2 border-dashed border-indigo-200 rounded-2xl text-indigo-600 font-bold text-xs hover:bg-indigo-50 transition-all active:scale-[0.98]"
-                  >
-                    <Camera size={18} />
-                    <span>Сканировать чек (ИИ)</span>
-                  </button>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Документ (наряд-заказ / чек)</label>
+                  {tempReceiptImage ? (
+                    <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-lg border border-slate-100">
+                      <img src={tempReceiptImage} alt="Документ" className="w-full h-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => setTempReceiptImage(null)}
+                        className="absolute top-3 right-3 p-2 bg-rose-500 text-white rounded-xl shadow-lg hover:bg-rose-600 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      type="button"
+                      onClick={() => setIsCameraOpen(true)}
+                      className="w-full flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all"
+                    >
+                      <Camera size={24} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Сфотографировать документ</span>
+                    </button>
+                  )}
                 </div>
 
                 <button 
