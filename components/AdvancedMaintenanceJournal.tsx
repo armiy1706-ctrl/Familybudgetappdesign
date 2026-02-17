@@ -106,7 +106,7 @@ export const AdvancedMaintenanceJournal = ({
     if (!activeCarId) return [];
     return records.filter(r => r.carId === activeCarId && 
       (r.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       CATEGORIES[r.type].label.toLowerCase().includes(searchTerm.toLowerCase()))
+       (CATEGORIES[r.type]?.label || '').toLowerCase().includes(searchTerm.toLowerCase()))
     ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [records, activeCarId, searchTerm]);
 
@@ -147,22 +147,35 @@ export const AdvancedMaintenanceJournal = ({
   };
 
   const handleGeneratePdf = async (toTelegram = false) => {
-    if (!activeCar) return;
+    if (!activeCar) {
+      toast.error('Автомобиль не выбран');
+      return;
+    }
+
     const h2p = (window as any).html2pdf;
-    if (!h2p) return toast.error("Библиотека PDF загружается...");
+    if (!h2p) {
+      toast.error('Библиотека PDF ещё загружается, повторите через секунду');
+      return;
+    }
+
+    if (toTelegram && typeof onSendToTelegram !== 'function') {
+      toast.error('Функция отправки в Telegram не настроена');
+      return;
+    }
 
     setIsGeneratingPdf(true);
     
     const safetyTimeout = setTimeout(() => {
       setIsGeneratingPdf(false);
-    }, 12000);
+      toast.error('Превышено время генерации PDF');
+    }, 15000);
 
     try {
       const rows = carRecords.map(r => `
         <tr style="border-bottom: 1px solid #ddd;">
           <td style="padding: 10px; font-size: 10px;">${new Date(r.date).toLocaleDateString('ru-RU')}</td>
           <td style="padding: 10px; font-size: 9px; color: #666; text-transform: uppercase;">${CATEGORIES[r.type]?.label || '—'}</td>
-          <td style="padding: 10px; font-size: 10px; word-break: break-all;">${r.description}</td>
+          <td style="padding: 10px; font-size: 10px; word-break: break-all;">${r.description || '—'}</td>
           <td style="padding: 10px; font-size: 10px; font-weight: bold; text-align: right;">${(r.amount || 0).toLocaleString()} ₽</td>
         </tr>
       `).join('');
@@ -178,8 +191,8 @@ export const AdvancedMaintenanceJournal = ({
             <tr>
               <td style="width: 50%; background: #f8f8f8; padding: 15px; border-radius: 12px; border: 1px solid #eee;">
                 <p style="margin: 0 0 5px; font-size: 8px; font-weight: bold; color: #4f46e5; text-transform: uppercase;">АВТОМОБИЛЬ</p>
-                <p style="margin: 0; font-size: 16px; font-weight: bold;">${activeCar.make} ${activeCar.model}</p>
-                <p style="margin: 5px 0 0; font-size: 12px;">Номер: <b>${activeCar.licensePlate}</b></p>
+                <p style="margin: 0; font-size: 16px; font-weight: bold;">${activeCar.make || '—'} ${activeCar.model || '—'}</p>
+                <p style="margin: 5px 0 0; font-size: 12px;">Номер: <b>${activeCar.licensePlate || '—'}</b></p>
                 <p style="margin: 2px 0 0; font-size: 10px; color: #666;">VIN: ${activeCar.vin || '—'}</p>
               </td>
               <td style="width: 50%; background: #f8f8f8; padding: 15px; border-radius: 12px; border: 1px solid #eee; text-align: right; vertical-align: top;">
@@ -206,7 +219,7 @@ export const AdvancedMaintenanceJournal = ({
 
       const opt = {
         margin: 10,
-        filename: `AutoAI_${activeCar.licensePlate}.pdf`,
+        filename: `AutoAI_${activeCar.licensePlate || 'report'}.pdf`,
         image: { type: 'jpeg', quality: 0.7 },
         html2canvas: { scale: 1, useCORS: true, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -215,23 +228,26 @@ export const AdvancedMaintenanceJournal = ({
       if (toTelegram) {
         toast.info("Подготовка для Telegram...");
         const result = await h2p().set(opt).from(htmlContent).outputPdf('datauristring');
-        setIsGeneratingPdf(false);
+        
         clearTimeout(safetyTimeout);
+        setIsGeneratingPdf(false);
         
         if (result && onSendToTelegram) {
-          onSendToTelegram(result, `${activeCar.make}_${activeCar.model}`);
+          onSendToTelegram(result, `${activeCar.make || 'car'}_${activeCar.model || 'model'}`);
+        } else {
+          toast.error('Не удалось сформировать PDF');
         }
       } else {
         await h2p().set(opt).from(htmlContent).save();
-        setIsGeneratingPdf(false);
         clearTimeout(safetyTimeout);
-        toast.success("PDF сохранен");
+        setIsGeneratingPdf(false);
+        toast.success("PDF сохранен локально");
       }
     } catch (err) {
-      console.error(err);
-      toast.error("Ошибка PDF.");
-      setIsGeneratingPdf(false);
+      console.error('PDF Generation Error:', err);
+      toast.error("Ошибка при создании PDF");
       clearTimeout(safetyTimeout);
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -241,7 +257,7 @@ export const AdvancedMaintenanceJournal = ({
     if (!JSZipLib) return toast.error("Библиотека ZIP загружается...");
     try {
       const zip = new JSZipLib();
-      const csv = "\uFEFFДата,Тип,Описание,Сумма\n" + carRecords.map(r => `${r.date},${CATEGORIES[r.type].label},${r.description},${r.amount}`).join("\n");
+      const csv = "\uFEFFДата,Тип,Описание,Сумма\n" + carRecords.map(r => `${r.date},${CATEGORIES[r.type]?.label || r.type},${r.description},${r.amount}`).join("\n");
       zip.file("report.csv", csv);
       const imgs = zip.folder("images");
       carRecords.forEach(r => { if (r.receiptImage) imgs.file(`${r.id}.png`, r.receiptImage.split(',')[1], { base64: true }); });
@@ -251,7 +267,7 @@ export const AdvancedMaintenanceJournal = ({
       a.href = url;
       a.download = `AutoAI_Backup.zip`;
       a.click();
-      toast.success("ZIP готов");
+      toast.success("ZIP архив готов");
     } catch (e) { toast.error("Ошибка ZIP"); }
   };
 
@@ -283,8 +299,8 @@ export const AdvancedMaintenanceJournal = ({
           <button key={car.id} onClick={() => setActiveCarId(car.id)} className={`flex items-center gap-3 px-6 py-4 rounded-[24px] font-bold transition-all shrink-0 border-2 ${activeCarId === car.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl scale-105' : 'bg-white border-slate-100 text-slate-400'}`}>
             <CarIcon size={16} />
             <div className="text-left">
-              <p className="text-[10px] uppercase font-black tracking-widest opacity-60 mb-0.5">{car.make}</p>
-              <p className="text-sm tracking-tight leading-none truncate max-w-[120px]">{car.model}</p>
+              <p className="text-[10px] uppercase font-black tracking-widest opacity-60 mb-0.5">{car.make || 'Car'}</p>
+              <p className="text-sm tracking-tight leading-none truncate max-w-[120px]">{car.model || 'Model'}</p>
             </div>
           </button>
         ))}
@@ -335,24 +351,26 @@ export const AdvancedMaintenanceJournal = ({
                       return (
                         <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4 flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-xl ${cat.bgColor} ${cat.color} flex items-center justify-center shrink-0`}><cat.icon size={16} /></div>
+                            <div className={`w-9 h-9 rounded-xl ${cat?.bgColor || 'bg-slate-50'} ${cat?.color || 'text-slate-400'} flex items-center justify-center shrink-0`}>
+                              {cat?.icon ? <cat.icon size={16} /> : <Wrench size={16} />}
+                            </div>
                             <div>
-                              <p className="text-[13px] font-black text-slate-900 uppercase leading-tight">{record.description}</p>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{new Date(record.date).toLocaleDateString('ru-RU')} • {cat.label}</p>
+                              <p className="text-[13px] font-black text-slate-900 uppercase leading-tight">{record.description || 'Без описания'}</p>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{new Date(record.date).toLocaleDateString('ru-RU')} • {cat?.label || 'Запись'}</p>
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <span className="text-[13px] font-black text-slate-900">{record.amount.toLocaleString()} ₽</span>
+                            <span className="text-[13px] font-black text-slate-900">{(record.amount || 0).toLocaleString()} ₽</span>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <button onClick={() => deleteRecord(record.id)} className="p-2 text-slate-200 hover:text-rose-500"><Trash2 size={16} /></button>
+                            <button onClick={() => deleteRecord(record.id)} className="p-2 text-slate-200 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
-              ) : <div className="py-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-widest">Пусто</div>}
+              ) : <div className="py-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-widest">Записей не найдено</div>}
             </div>
           </div>
         </div>
@@ -366,7 +384,7 @@ export const AdvancedMaintenanceJournal = ({
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl relative z-10">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Новая запись</h3>
-                <button onClick={() => setShowAddModal(false)} className="p-2 text-slate-400"><X size={24} /></button>
+                <button onClick={() => setShowAddModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={24} /></button>
               </div>
               <form onSubmit={handleAddRecord} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -389,7 +407,7 @@ export const AdvancedMaintenanceJournal = ({
                   <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Сумма (₽)</label>
                   <input name="amount" type="number" required className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none" placeholder="0" />
                 </div>
-                <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest">Сохранить</button>
+                <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-colors">Сохранить</button>
               </form>
             </motion.div>
           </div>
