@@ -820,9 +820,9 @@ export const AdvancedMaintenanceJournal = ({
                         <div style={{ width: '40px', height: '40px', backgroundColor: '#4f46e5', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
                           <TrendingUp size={24} />
                         </div>
-                        <h1 style={{ fontSize: '28px', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', margin: 0, color: '#0f172a' }}>AutoAI Report</h1>
+                        <h1 style={{ fontSize: '28px', fontWeight: '900', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', margin: 0, color: '#0f172a' }}>AutoAI Отчёт</h1>
                       </div>
-                      <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Smart Automotive Intelligence Systems</p>
+                      <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Интеллектуальные автомобильные системы</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.1em', marginBottom: '4px', margin: 0 }}>Дата формирования</p>
