@@ -25,7 +25,8 @@ import {
   Eye,
   Image as ImageIcon,
   Loader2,
-  Archive
+  Archive,
+  Send
 } from 'lucide-react';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, 
