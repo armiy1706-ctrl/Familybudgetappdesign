@@ -897,7 +897,7 @@ export const AdvancedMaintenanceJournal = ({
                                   {cat.label}
                                 </span>
                               </td>
-                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', color: '#0f172a', lineHeight: '1.4', wordBreak: 'break-word' }}>{r.description}</td>
+                              <td style={{ padding: '12px', fontSize: '11px', fontWeight: 'bold', color: '#0f172a', lineHeight: '1.4', wordBreak: 'break-all', overflowWrap: 'break-word' }}>{r.description}</td>
                               <td style={{ padding: '12px', fontSize: '11px', fontWeight: '900', color: '#0f172a', textAlign: 'right' }}>{(r.amount || 0).toLocaleString()} ₽</td>
                             </tr>
                           );
