@@ -5,7 +5,6 @@ import {
   Wrench, 
   History, 
   Plus, 
-  Download,
   Trash2,
   DollarSign,
   Fuel,
@@ -42,6 +41,17 @@ const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; 
   fuel: { label: 'Топливо', icon: Fuel, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
   service: { label: 'ТО', icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-50' }
 };
+
+// --- Subcomponents ---
+const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) => (
+  <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
+    <div className={`w-10 h-10 ${bgColorClass} ${colorClass} rounded-xl flex items-center justify-center mb-3`}>
+      <Icon size={18} />
+    </div>
+    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-0.5">{label}</p>
+    <h4 className="text-lg font-black text-slate-900 tracking-tight">{value}</h4>
+  </div>
+);
 
 export const AdvancedMaintenanceJournal = ({ 
   cars = [], 
@@ -85,10 +95,12 @@ export const AdvancedMaintenanceJournal = ({
   }, [records]);
 
   useEffect(() => {
-    if (cars.length > 0 && !activeCarId) setActiveCarId(cars[0].id);
+    if (cars && cars.length > 0 && !activeCarId) {
+      setActiveCarId(cars[0].id);
+    }
   }, [cars, activeCarId]);
 
-  const activeCar = useMemo(() => cars.find(c => c.id === activeCarId), [cars, activeCarId]);
+  const activeCar = useMemo(() => (cars || []).find(c => c.id === activeCarId), [cars, activeCarId]);
   
   const carRecords = useMemo(() => {
     if (!activeCarId) return [];
@@ -141,18 +153,17 @@ export const AdvancedMaintenanceJournal = ({
 
     setIsGeneratingPdf(true);
     
-    // Safety timeout to prevent permanent UI lock
     const safetyTimeout = setTimeout(() => {
       setIsGeneratingPdf(false);
-    }, 10000);
+    }, 12000);
 
     try {
       const rows = carRecords.map(r => `
         <tr style="border-bottom: 1px solid #ddd;">
           <td style="padding: 10px; font-size: 10px;">${new Date(r.date).toLocaleDateString('ru-RU')}</td>
-          <td style="padding: 10px; font-size: 9px; color: #666; text-transform: uppercase;">${CATEGORIES[r.type].label}</td>
+          <td style="padding: 10px; font-size: 9px; color: #666; text-transform: uppercase;">${CATEGORIES[r.type]?.label || '—'}</td>
           <td style="padding: 10px; font-size: 10px; word-break: break-all;">${r.description}</td>
-          <td style="padding: 10px; font-size: 10px; font-weight: bold; text-align: right;">${r.amount.toLocaleString()} ₽</td>
+          <td style="padding: 10px; font-size: 10px; font-weight: bold; text-align: right;">${(r.amount || 0).toLocaleString()} ₽</td>
         </tr>
       `).join('');
 
@@ -190,10 +201,6 @@ export const AdvancedMaintenanceJournal = ({
             </thead>
             <tbody>${rows}</tbody>
           </table>
-          
-          <div style="margin-top: 50px; border-top: 1px dashed #ccc; padding-top: 20px; text-align: center;">
-            <p style="margin: 0; font-size: 9px; color: #999; font-style: italic;">Данный отчет создан в AutoAI. Все оригиналы чеков доступны в ZIP архиве приложения.</p>
-          </div>
         </div>
       `;
 
@@ -207,18 +214,12 @@ export const AdvancedMaintenanceJournal = ({
 
       if (toTelegram) {
         toast.info("Подготовка для Telegram...");
-        // Get the base64 string
         const result = await h2p().set(opt).from(htmlContent).outputPdf('datauristring');
-        
-        // IMPORTANT: Reset UI lock BEFORE calling the potentially heavy Telegram fetch
         setIsGeneratingPdf(false);
         clearTimeout(safetyTimeout);
         
         if (result && onSendToTelegram) {
-          // Pass to parent function
           onSendToTelegram(result, `${activeCar.make}_${activeCar.model}`);
-        } else {
-          throw new Error("PDF failed");
         }
       } else {
         await h2p().set(opt).from(htmlContent).save();
@@ -228,7 +229,7 @@ export const AdvancedMaintenanceJournal = ({
       }
     } catch (err) {
       console.error(err);
-      toast.error("Ошибка PDF. Попробуйте еще раз.");
+      toast.error("Ошибка PDF.");
       setIsGeneratingPdf(false);
       clearTimeout(safetyTimeout);
     }
@@ -248,13 +249,13 @@ export const AdvancedMaintenanceJournal = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `AutoAI_${activeCar.licensePlate}.zip`;
+      a.download = `AutoAI_Backup.zip`;
       a.click();
-      toast.success("ZIP архив готов");
+      toast.success("ZIP готов");
     } catch (e) { toast.error("Ошибка ZIP"); }
   };
 
-  if (cars.length === 0) return (
+  if (!cars || cars.length === 0) return (
     <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 text-center px-10">
       <CarIcon size={40} className="text-slate-300 mb-6" />
       <h3 className="text-xl font-black text-slate-900 mb-2 uppercase">Гараж пуст</h3>
@@ -271,14 +272,14 @@ export const AdvancedMaintenanceJournal = ({
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center">
             <div className="bg-white p-8 rounded-[32px] shadow-2xl flex flex-col items-center gap-4">
               <Loader2 className="animate-spin text-indigo-600" size={32} />
-              <p className="text-xs font-black uppercase tracking-widest text-slate-900">Генерация PDF...</p>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-900">Создание PDF...</p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {cars.map(car => (
+        {(cars || []).map(car => (
           <button key={car.id} onClick={() => setActiveCarId(car.id)} className={`flex items-center gap-3 px-6 py-4 rounded-[24px] font-bold transition-all shrink-0 border-2 ${activeCarId === car.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl scale-105' : 'bg-white border-slate-100 text-slate-400'}`}>
             <CarIcon size={16} />
             <div className="text-left">
@@ -357,7 +358,7 @@ export const AdvancedMaintenanceJournal = ({
         </div>
       )}
 
-      {/* Simplified Add Modal */}
+      {/* Add Modal */}
       <AnimatePresence>
         {showAddModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -382,7 +383,7 @@ export const AdvancedMaintenanceJournal = ({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Описание</label>
-                  <input name="description" type="text" required className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none" placeholder="Напр: Замена масла" />
+                  <input name="description" type="text" required className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none" placeholder="Замена масла" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Сумма (₽)</label>
