@@ -292,48 +292,56 @@ export const AdvancedMaintenanceJournal = ({
     const opt = {
       margin: [10, 10, 10, 10],
       filename: `AutoAI_Report_${activeCar.licensePlate || 'CAR'}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg', quality: 1.0 },
       html2canvas: { 
-        scale: 3, 
+        scale: 2, 
         useCORS: true, 
         allowTaint: true,
         logging: false,
         letterRendering: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        imageTimeout: 15000,
       },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
-      // Create worker instance for better error handling
-      const worker = h2p().set(opt).from(element);
+      // Use a fresh worker for each generation to avoid state pollution
+      const worker = h2p();
       
       if (shouldSendToTelegram) {
-        const pdfBlob = await worker.outputPdf('blob');
+        toast.info("Подготовка файла для Telegram...");
+        const pdfBlob = await worker.set(opt).from(element).outputPdf('blob');
         
         if (pdfBlob) {
+          // Check if file is too large for Telegram (limit ~50MB but realistic payload limit is lower)
+          if (pdfBlob.size > 15 * 1024 * 1024) {
+            toast.warning("Файл очень большой. Отправка может занять время.");
+          }
+          
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64data = reader.result as string;
             onSendToTelegram?.(base64data, `${activeCar.make} ${activeCar.model}`);
             setIsGeneratingPdf(false);
           };
+          reader.onerror = () => {
+            throw new Error("Ошибка чтения файла");
+          };
           reader.readAsDataURL(pdfBlob);
         }
       } else {
-        await worker.save();
+        await worker.set(opt).from(element).save();
         toast.success("Отчет сохранен");
         setIsGeneratingPdf(false);
       }
     } catch (err: any) {
       console.error("CRITICAL PDF ERROR:", err);
-      toast.error("Сбой генератора. Пробуем альтернативный метод...");
-      
-      // Fallback: Simple alert if it still hangs (rare)
-      setTimeout(() => {
-        if (isGeneratingPdf) setIsGeneratingPdf(false);
-      }, 5000);
+      setIsGeneratingPdf(false);
+      toast.error("Сбой генерации: возможно, слишком много фото. Попробуйте скачать отчет локально.");
     }
   };
 
@@ -877,11 +885,19 @@ export const AdvancedMaintenanceJournal = ({
                       </h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         {carRecords.filter(r => r.receiptImage).map((r) => (
-                          <div key={r.id} style={{ width: '100%', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '20px', backgroundColor: '#f8fafc', boxSizing: 'border-box', pageBreakInside: 'avoid', marginBottom: '10px' }}>
+                          <div key={r.id} style={{ width: '100%', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '20px', backgroundColor: '#f8fafc', boxSizing: 'border-box', pageBreakInside: 'avoid', marginBottom: '20px' }}>
                             <img 
                               src={r.receiptImage} 
                               crossOrigin="anonymous"
-                              style={{ width: '100%', height: 'auto', maxHeight: '250mm', objectFit: 'contain', borderRadius: '12px', marginBottom: '15px', display: 'block', backgroundColor: '#ffffff' }} 
+                              style={{ 
+                                width: '100%', 
+                                height: 'auto', 
+                                display: 'block', 
+                                borderRadius: '12px', 
+                                marginBottom: '15px', 
+                                backgroundColor: '#ffffff',
+                                imageRendering: 'auto'
+                              }} 
                             />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
                               <div style={{ flex: 1 }}>
