@@ -839,8 +839,12 @@ export const AdvancedMaintenanceJournal = ({
                     </div>
                     <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
                       <p style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#4f46e5', letterSpacing: '0.1em', marginBottom: '6px', margin: 0 }}>Идентификация</p>
-                      <p style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '-0.025em', margin: 0 }}>{(activeCar as any).plate || 'БЕЗ НОМЕРА'}</p>
-                      <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginTop: '4px', fontFamily: 'monospace', wordBreak: 'break-all', margin: 0 }}>{(activeCar as any).vin || 'VIN ОТСУТСТВУЕТ'}</p>
+                      <p style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '-0.025em', margin: 0 }}>
+                        {activeCar.plate ? activeCar.plate : 'НОМЕР НЕ УКАЗАН'}
+                      </p>
+                      <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginTop: '4px', fontFamily: 'monospace', wordBreak: 'break-all', margin: 0 }}>
+                        VIN: {activeCar.vin ? activeCar.vin : 'ОТСУТСТВУЕТ'}
+                      </p>
                     </div>
                   </div>
 
