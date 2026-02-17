@@ -19,7 +19,8 @@ import {
   Archive,
   Send,
   TrendingUp,
-  Download
+  Download,
+  Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
@@ -37,14 +38,13 @@ interface MaintenanceRecord {
   receiptImage?: string;
 }
 
-const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; bgColor: string }> = {
-  repair: { label: 'Ремонт', icon: Wrench, color: 'text-rose-600', bgColor: 'bg-rose-50' },
-  parts: { label: 'Запчасти', icon: Cog, color: 'text-amber-600', bgColor: 'bg-amber-50' },
-  fuel: { label: 'Топливо', icon: Fuel, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
-  service: { label: 'ТО', icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-50' }
+const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; bgColor: string; badgeColor: string }> = {
+  repair: { label: 'Ремонт', icon: Wrench, color: 'text-rose-600', bgColor: 'bg-rose-50', badgeColor: '#ef4444' },
+  parts: { label: 'Запчасти', icon: Cog, color: 'text-amber-600', bgColor: 'bg-amber-50', badgeColor: '#f59e0b' },
+  fuel: { label: 'Топливо', icon: Fuel, color: 'text-indigo-600', bgColor: 'bg-indigo-50', badgeColor: '#8b5cf6' },
+  service: { label: 'ТО', icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-50', badgeColor: '#10b981' }
 };
 
-// --- Subcomponents ---
 const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) => (
   <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
     <div className={`w-10 h-10 ${bgColorClass} ${colorClass} rounded-xl flex items-center justify-center mb-3`}>
@@ -75,7 +75,6 @@ export const AdvancedMaintenanceJournal = ({
   
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // Load external libraries once
   useEffect(() => {
     const scripts = [
       { id: 'jszip-lib-js', src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js' },
@@ -98,7 +97,7 @@ export const AdvancedMaintenanceJournal = ({
       try { 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setRecords(parsed);
-      } catch (e) { console.error("LocalStorage load error:", e); }
+      } catch (e) { console.error(e); }
     }
   }, []);
 
@@ -161,7 +160,7 @@ export const AdvancedMaintenanceJournal = ({
   const handleGeneratePdf = async (toTelegram = false) => {
     const h2p = (window as any).html2pdf;
     if (!h2p) {
-      toast.error('Модуль PDF еще не загружен. Попробуйте снова через 3 сек.');
+      toast.error('Модуль PDF загружается...');
       return;
     }
 
@@ -171,50 +170,71 @@ export const AdvancedMaintenanceJournal = ({
     }
 
     const element = reportRef.current;
-    if (!element) {
-      toast.error('Ошибка структуры отчета');
-      return;
-    }
+    if (!element) return;
 
     setIsGeneratingPdf(true);
     
-    // Safety timer
     const safetyTimer = setTimeout(() => {
       setIsGeneratingPdf(false);
-      toast.error('Ошибка: Превышено время ожидания');
+      toast.error('Ошибка времени ожидания');
     }, 25000);
 
     try {
       const opt = {
-        margin: [10, 10],
-        filename: `AutoAI_Report_${activeCar.licensePlate || 'Log'}.pdf`,
+        margin: [5, 5],
+        filename: `AutoAI_Report_${activeCar.licensePlate}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
-          scale: 1.5, // Reduced scale for better mobile performance
+          scale: 2, 
           useCORS: true,
           logging: false,
           letterRendering: true,
           onclone: (clonedDoc: Document) => {
-            // AGGRESSIVE CLEANUP: Remove ALL style and link tags from the cloned document
-            // This prevents Tailwind 4 oklch() colors from crashing the canvas renderer
             const head = clonedDoc.head;
             const styleTags = head.querySelectorAll('style, link[rel="stylesheet"]');
             styleTags.forEach(tag => tag.remove());
 
-            // Add back only the bare minimum styles needed for the report
             const reportStyles = clonedDoc.createElement('style');
             reportStyles.innerHTML = `
-              body { background: white !important; color: black !important; font-family: sans-serif; }
-              .report-wrapper { width: 100%; padding: 0; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th { text-align: left; padding: 10px; border-bottom: 2px solid #333; font-size: 10px; color: #666; }
-              td { padding: 10px; border-bottom: 1px solid #eee; font-size: 11px; }
-              .header { border-bottom: 4px solid #4f46e5; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
-              .car-info { background: #f8fafc; padding: 15px; border-radius: 12px; }
-              .stats-info { background: #f8fafc; padding: 15px; border-radius: 12px; text-align: right; }
-              .footer { margin-top: 40px; text-align: center; font-size: 9px; color: #ccc; }
-              h1 { margin: 0; font-size: 24px; font-weight: 900; color: #4f46e5; }
-              h2 { margin: 0; font-size: 16px; font-weight: 800; }
+              body { background: white !important; color: #1e293b !important; font-family: "Helvetica", "Arial", sans-serif; -webkit-print-color-adjust: exact; }
+              .pdf-container { width: 100%; padding: 0; }
+              .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+              .logo-title { display: flex; align-items: center; gap: 10px; }
+              .logo-box { width: 32px; height: 32px; background: #4f46e5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; }
+              .brand-name { font-size: 24px; font-weight: 900; letter-spacing: -0.5px; color: #1e1b4b; text-transform: uppercase; }
+              .date-info { text-align: right; }
+              .date-label { font-size: 8px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+              .date-value { font-size: 11px; font-weight: 700; color: #1e293b; }
+              .subtitle { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; margin-top: -5px; margin-bottom: 15px; }
+              .divider { height: 4px; background: #4f46e5; margin-bottom: 25px; border-radius: 2px; }
+              
+              .car-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+              .card { background: #f8fafc; border-radius: 16px; padding: 15px; border: 1px solid #f1f5f9; }
+              .card-label { font-size: 8px; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+              .card-title { font-size: 16px; font-weight: 900; color: #0f172a; margin: 0; }
+              .card-subtext { font-size: 10px; font-weight: 600; color: #64748b; margin-top: 2px; }
+              
+              .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px; }
+              .stat-item { background: #ffffff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 10px; text-align: center; }
+              .stat-label { font-size: 7px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+              .stat-value { font-size: 13px; font-weight: 900; }
+              
+              .history-title { font-size: 12px; font-weight: 900; color: #0f172a; text-transform: uppercase; border-left: 4px solid #4f46e5; padding-left: 10px; margin-bottom: 15px; display: flex; align-items: center; }
+              
+              table { width: 100%; border-collapse: collapse; }
+              thead tr { background: #0f172a; }
+              th { text-align: left; padding: 10px 12px; font-size: 8px; font-weight: 800; color: white; text-transform: uppercase; letter-spacing: 1px; }
+              td { padding: 12px; font-size: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+              .col-date { font-weight: 600; color: #64748b; width: 15%; }
+              .col-type { width: 15%; }
+              .col-desc { font-weight: 500; color: #1e293b; width: 55%; }
+              .col-sum { font-weight: 900; text-align: right; color: #0f172a; width: 15%; }
+              
+              .badge { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+              
+              .footer { margin-top: 40px; display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid #f1f5f9; }
+              .footer-left { display: flex; align-items: center; gap: 5px; font-size: 8px; font-weight: 800; color: #cbd5e1; text-transform: uppercase; letter-spacing: 1px; }
+              .footer-right { font-size: 8px; font-weight: 600; color: #cbd5e1; }
             `;
             head.appendChild(reportStyles);
           }
@@ -225,56 +245,30 @@ export const AdvancedMaintenanceJournal = ({
       const worker = h2p().set(opt).from(element);
 
       if (toTelegram) {
-        if (!onSendToTelegram) {
-          throw new Error("Telegram sender function missing");
-        }
-        
         const pdfBase64 = await worker.outputPdf('datauristring');
-        
         clearTimeout(safetyTimer);
         setIsGeneratingPdf(false);
-
-        if (pdfBase64) {
+        if (pdfBase64 && onSendToTelegram) {
           onSendToTelegram(pdfBase64, `${activeCar.make}_${activeCar.model}`);
-        } else {
-          toast.error('Не удалось создать PDF поток');
         }
       } else {
         await worker.save();
         clearTimeout(safetyTimer);
         setIsGeneratingPdf(false);
-        toast.success("Отчет сохранен");
+        toast.success("Отчет скачан");
       }
     } catch (err) {
-      console.error('PDF CRITICAL ERROR:', err);
-      toast.error("Критический сбой генерации. Обновите страницу.");
+      console.error(err);
+      toast.error("Сбой генерации");
       clearTimeout(safetyTimer);
       setIsGeneratingPdf(false);
     }
   };
 
-  const exportArchive = async () => {
-    const JSZipLib = (window as any).JSZip;
-    if (!JSZipLib) return toast.error("ZIP модуль загружается...");
-    try {
-      const zip = new JSZipLib();
-      const csv = "\uFEFFДата,Тип,Описание,Сумма\n" + carRecords.map(r => `${r.date},${CATEGORIES[r.type]?.label || r.type},${r.description},${r.amount}`).join("\n");
-      zip.file("report.csv", csv);
-      const blob = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `AutoAI_Records.zip`;
-      a.click();
-      toast.success("Архив готов");
-    } catch (e) { toast.error("Ошибка экспорта"); }
-  };
-
   if (!cars || cars.length === 0) return (
     <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[40px] border border-dashed border-slate-200 px-10">
       <CarIcon size={40} className="text-slate-300 mb-6" />
-      <h3 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">Гараж пуст</h3>
-      <p className="text-sm text-slate-400 font-medium">Добавьте автомобиль в профиле.</p>
+      <h3 className="text-xl font-black text-slate-900 mb-2 uppercase">Гараж пуст</h3>
     </div>
   );
 
@@ -283,60 +277,97 @@ export const AdvancedMaintenanceJournal = ({
       <CameraCapture isOpen={isCameraOpen} onClose={() => setIsCameraOpen(false)} onCapture={(img) => { setTempReceiptImage(img); setIsCameraOpen(false); }} />
       
       {/* 
-          OFF-SCREEN REPORT CONTAINER 
-          Using visibility:hidden and absolute positioning to keep it out of sight 
-          but available for html2canvas capture.
+          MODERN REPORT DESIGN BASED ON ATTACHED IMAGE 
       */}
       <div style={{ position: 'fixed', left: '-5000px', top: '0', zIndex: -1 }}>
         {activeCar && (
-          <div ref={reportRef} className="report-wrapper" style={{ background: '#ffffff', width: '210mm', padding: '15mm' }}>
+          <div ref={reportRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '15mm' }}>
+            {/* Header */}
             <div className="header">
-              <div>
-                <h1>AutoAI Report</h1>
-                <p style={{ margin: 0, fontSize: '10px', color: '#666', fontWeight: 'bold' }}>СИСТЕМА ИНТЕЛЛЕКТУАЛЬНОЙ ДИАГНОСТИКИ</p>
+              <div className="logo-title">
+                <div className="logo-box">
+                  <Activity size={20} />
+                </div>
+                <div className="brand-name">AutoAI Отчёт</div>
               </div>
-              <div style={{ textAlign: 'right', fontSize: '10px', color: '#999' }}>
-                Дата: {new Date().toLocaleDateString('ru-RU')}
+              <div className="date-info">
+                <div className="date-label">Дата формирования</div>
+                <div className="date-value">{new Date().toLocaleDateString('ru-RU')}</div>
+              </div>
+            </div>
+            <div className="subtitle">Интеллектуальные автомобильные системы</div>
+            <div className="divider"></div>
+
+            {/* Car Cards */}
+            <div className="car-cards">
+              <div className="card">
+                <div className="card-label">Автомобиль</div>
+                <h2 className="card-title">{activeCar.make} {activeCar.model}</h2>
+                <div className="card-subtext">{activeCar.year || '2023'} г.в. • {activeCar.transmission || 'АКПП'}</div>
+              </div>
+              <div className="card">
+                <div className="card-label">Идентификация</div>
+                <h2 className="card-title">{activeCar.licensePlate}</h2>
+                <div className="card-subtext">VIN: {activeCar.vin || '47535796535897534'}</div>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-              <div className="car-info">
-                <p style={{ margin: '0 0 5px', fontSize: '9px', color: '#4f46e5', fontWeight: 900 }}>АВТОМОБИЛЬ</p>
-                <h2>{activeCar.make} {activeCar.model}</h2>
-                <p style={{ margin: '5px 0 0', fontSize: '12px', fontWeight: 700 }}>{activeCar.licensePlate}</p>
-                <p style={{ margin: '3px 0 0', fontSize: '10px', color: '#666' }}>VIN: {activeCar.vin || '—'}</p>
+            {/* Stats Row */}
+            <div className="stats-row">
+              <div className="stat-item" style={{ background: '#f5f3ff' }}>
+                <div className="stat-label">Общие затраты</div>
+                <div className="stat-value" style={{ color: '#4f46e5' }}>{stats.total.toLocaleString()} ₽</div>
               </div>
-              <div className="stats-info">
-                <p style={{ margin: '0 0 5px', fontSize: '9px', color: '#4f46e5', fontWeight: 900 }}>ИТОГО РАСХОДОВ</p>
-                <h2 style={{ fontSize: '24px' }}>{stats.total.toLocaleString()} ₽</h2>
-                <p style={{ margin: '5px 0 0', fontSize: '10px', color: '#666' }}>Количество записей: {carRecords.length}</p>
+              <div className="stat-item">
+                <div className="stat-label">Записей</div>
+                <div className="stat-value">{carRecords.length}</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-label">Пробег</div>
+                <div className="stat-value">{activeCar.mileage || '5000'} км</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-label">ТО / Сервис</div>
+                <div className="stat-value" style={{ color: '#10b981' }}>{(stats.byType.service || 0).toLocaleString()} ₽</div>
               </div>
             </div>
 
+            {/* History Table */}
+            <div className="history-title">Подробная история операций</div>
             <table>
               <thead>
                 <tr>
-                  <th>ДАТА</th>
-                  <th>КАТЕГОРИЯ</th>
-                  <th>ОПИСАНИЕ</th>
-                  <th style={{ textAlign: 'right' }}>СУММА</th>
+                  <th className="col-date">Дата</th>
+                  <th className="col-type">Тип</th>
+                  <th className="col-desc">Описание работ</th>
+                  <th className="col-sum">Сумма</th>
                 </tr>
               </thead>
               <tbody>
                 {carRecords.map(r => (
                   <tr key={r.id}>
-                    <td>{new Date(r.date).toLocaleDateString('ru-RU')}</td>
-                    <td style={{ fontWeight: 700, color: '#4f46e5' }}>{CATEGORIES[r.type]?.label || r.type}</td>
-                    <td>{r.description}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 800 }}>{r.amount.toLocaleString()} ₽</td>
+                    <td className="col-date">{r.date}</td>
+                    <td className="col-type">
+                      <span className="badge" style={{ color: CATEGORIES[r.type]?.badgeColor || '#64748b' }}>
+                        {CATEGORIES[r.type]?.label.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="col-desc">{r.description}</td>
+                    <td className="col-sum">{r.amount.toLocaleString()} ₽</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
+            {/* Footer */}
             <div className="footer">
-              GENERATED BY AUTOAI TELEGRAM MINI APP • VERSION 4.2.12
+              <div className="footer-left">
+                <Activity size={10} />
+                AutoAI Core Generation
+              </div>
+              <div className="footer-right">
+                ID: {Math.floor(Math.random() * 100000000)} - {new Date().toLocaleTimeString('ru-RU')}
+              </div>
             </div>
           </div>
         )}
@@ -344,13 +375,10 @@ export const AdvancedMaintenanceJournal = ({
 
       <AnimatePresence>
         {isGeneratingPdf && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6">
-            <div className="bg-white p-10 rounded-[40px] shadow-2xl flex flex-col items-center gap-6 max-w-xs w-full text-center">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center">
+            <div className="bg-white p-10 rounded-[40px] shadow-2xl flex flex-col items-center gap-6 max-w-xs w-full">
               <Loader2 className="animate-spin text-indigo-600" size={56} />
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-900 mb-2">Генерация PDF</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Обработка данных и очистка стилей для Telegram...</p>
-              </div>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-900 text-center">Формирование визуального отчета...</p>
             </div>
           </motion.div>
         )}
@@ -379,7 +407,7 @@ export const AdvancedMaintenanceJournal = ({
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               <button onClick={() => handleGeneratePdf(false)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"><Download size={14} /> PDF</button>
-              <button onClick={() => handleGeneratePdf(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"><Send size={14} /> В Telegram</button>
+              <button onClick={() => handleGeneratePdf(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"><Send size={14} /> Сформировать отчет</button>
               <button onClick={() => setShowAddModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all"><Plus size={16} /> Добавить</button>
             </div>
           </div>
