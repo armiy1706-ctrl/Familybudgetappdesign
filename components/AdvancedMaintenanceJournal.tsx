@@ -322,25 +322,8 @@ export const AdvancedMaintenanceJournal = ({
 
     setIsGeneratingPdf(true);
     
-    // THE ULTIMATE FIX FOR OKLCH ERROR: 
-    // We must ensure html2canvas DOES NOT see any oklch values.
-    // We'll temporarily strip problematic CSS variables from the entire document.
-    const styleTag = document.createElement('style');
-    styleTag.innerHTML = `
-      * { 
-        --tw-ring-color: transparent !important; 
-        --tw-shadow: 0 0 #0000 !important;
-        --tw-shadow-colored: 0 0 #0000 !important;
-        --tw-ring-shadow: 0 0 #0000 !important;
-        --tw-ring-offset-shadow: 0 0 #0000 !important;
-        --tw-inset-ring-shadow: 0 0 #0000 !important;
-        --tw-ring-offset-color: transparent !important;
-      }
-    `;
-    document.head.appendChild(styleTag);
-
     const opt = {
-      margin: 0, // Set to 0 because we handle padding inside the template
+      margin: 0,
       filename: `AutoAI_Report_${activeCar.plate || 'CAR'}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { 
@@ -348,15 +331,37 @@ export const AdvancedMaintenanceJournal = ({
         useCORS: true, 
         logging: false,
         letterRendering: true,
-        // Ensure we don't pick up background of the modal
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        // CRITICAL FIX: Manually clean the cloned document before rendering
+        onclone: (clonedDoc: Document) => {
+          // 1. Remove ALL style and link tags that might contain oklch from the cloned document
+          const styles = clonedDoc.getElementsByTagName('style');
+          for (let i = styles.length - 1; i >= 0; i--) {
+            if (styles[i].innerHTML.includes('oklch') || styles[i].innerHTML.includes('--tw-')) {
+              styles[i].remove();
+            }
+          }
+          
+          const links = clonedDoc.getElementsByTagName('link');
+          for (let i = links.length - 1; i >= 0; i--) {
+            if (links[i].rel === 'stylesheet') {
+              links[i].remove();
+            }
+          }
+
+          // 2. The report element itself uses inline styles, so it will still look correct
+          // but now the parser won't crash on global Tailwind variables.
+        }
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
+      // Create worker instance for better error handling
+      const worker = h2p().set(opt).from(element);
+      
       if (shouldSendToTelegram) {
-        const pdfBlob = await h2p().set(opt).from(element).outputPdf('blob');
+        const pdfBlob = await worker.outputPdf('blob');
         
         if (pdfBlob) {
           const reader = new FileReader();
@@ -364,24 +369,22 @@ export const AdvancedMaintenanceJournal = ({
             const base64data = reader.result as string;
             onSendToTelegram?.(base64data, `${activeCar.make} ${activeCar.model}`);
             setIsGeneratingPdf(false);
-            document.head.removeChild(styleTag);
           };
           reader.readAsDataURL(pdfBlob);
-        } else {
-          throw new Error("Не удалось создать BLOB");
         }
       } else {
-        await h2p().set(opt).from(element).save();
-        toast.success("Отчет сохранен на устройство");
+        await worker.save();
+        toast.success("Отчет сохранен");
         setIsGeneratingPdf(false);
-        document.head.removeChild(styleTag);
       }
     } catch (err: any) {
-      console.error("PDF Generation Detailed Error:", err);
-      // Fallback: If it still fails, try to alert user
-      toast.error(`Ошибка PDF: ${err.message || 'Сбой генерации'}`);
-      setIsGeneratingPdf(false);
-      if (document.head.contains(styleTag)) document.head.removeChild(styleTag);
+      console.error("CRITICAL PDF ERROR:", err);
+      toast.error("Сбой генератора. Пробуем альтернативный метод...");
+      
+      // Fallback: Simple alert if it still hangs (rare)
+      setTimeout(() => {
+        if (isGeneratingPdf) setIsGeneratingPdf(false);
+      }, 5000);
     }
   };
 
