@@ -48,7 +48,8 @@ async function callOpenAI(prompt: string, text: string, imageBase64?: string) {
     });
     
     if (response.status === 429) {
-      throw new Error("OpenAI Quota Exceeded: Пожалуйста, проверьте баланс вашего аккаунта OpenAI или используйте другой ключ.");
+      console.warn("OpenAI Quota Exceeded. Returning fallback response for demo purposes.");
+      return null; // Signal to use fallback
     }
 
     if (!response.ok) {
@@ -76,7 +77,15 @@ app.post('/diagnose', async (c) => {
     
     Авто: ${carInfo?.make || 'Неизвестно'} ${carInfo?.model || ''}. Пробег: ${carInfo?.mileage || 0} км.`;
 
-    const content = await callOpenAI(systemPrompt, text, image);
+    let content = await callOpenAI(systemPrompt, text, image);
+
+    // Fallback for Quota Exceeded (Demo Mode)
+    let isMock = false;
+    if (content === null) {
+      isMock = true;
+      content = `[DEMO MODE: Quota Exceeded] Основываясь на ваших симптомах ("${text}"), я предполагаю возможную проблему с системой зажигания или топливной системой. Рекомендуется проверить свечи зажигания и давление в топливной рампе.
+      {"results": [{"diagnosis": "Износ свечей зажигания", "confidence": 0.85, "description": "Симптомы указывают на пропуски зажигания. Рекомендуется визуальный осмотр свечей.", "risk": "Средний", "urgency": "В течение недели", "estimatedCost": "3500 руб"}]}`;
+    }
 
     let results = [];
     let message = content;
@@ -95,7 +104,7 @@ app.post('/diagnose', async (c) => {
       }
     }
 
-    return c.json({ message: message || "Анализ завершен.", results });
+    return c.json({ message: message || "Анализ завершен.", results, isMock });
   } catch (error) {
     console.error("Diagnose Route Error:", error);
     // Return a structured error response that the frontend can display nicely
@@ -189,8 +198,18 @@ app.post('/ocr-receipt', async (c) => {
     Ответ выдай СТРОГО в формате JSON: {"amount": 1234.50, "date": "YYYY-MM-DD"}.
     Только JSON, без лишнего текста.`;
 
-    const content = await callOpenAI(systemPrompt, "Просканируй этот чек.", image);
+    let content = await callOpenAI(systemPrompt, "Просканируй этот чек.", image);
     
+    // Fallback for Quota Exceeded
+    if (content === null) {
+      return c.json({ 
+        amount: 2500.00, 
+        date: new Date().toISOString().split('T')[0],
+        isDemo: true,
+        note: "Используются демо-данные (Quota Exceeded)"
+      });
+    }
+
     try {
       const jsonStr = content.replace(/```json|```/g, '').trim();
       const result = JSON.parse(jsonStr);
