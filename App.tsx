@@ -420,7 +420,6 @@ export default function App() {
                     setDashboardData={updateDashboardData} 
                     onDeleteCar={deleteCar} 
                     onOpenCamera={() => setIsCameraOpen(true)}
-                    session={session}
                   />
                 )}
                 {activeTab === 'maintenance' && (
@@ -430,6 +429,7 @@ export default function App() {
                     onDeleteCar={deleteCar} 
                     onSendToTelegram={sendReportToTelegram}
                     onUpdateCarDashboard={updateCarDashboardById}
+                    session={session}
                   />
                 )}
                 {activeTab === 'diagnostics' && (
