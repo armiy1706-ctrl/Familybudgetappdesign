@@ -534,34 +534,37 @@ export const Profile = ({ session, userProfile, cars, onAddCar, onDeleteCar, act
 
 const CarItem = ({ make, model, year, active, vin, licensePlate, onClick, onDelete }: any) => (
   <div 
-    className={`flex items-center justify-between p-4 rounded-2xl transition-all border-2 ${active ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-100'}`}
+    className={`relative p-4 rounded-2xl transition-all border-2 ${active ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-100'}`}
   >
-    <div className="flex items-center gap-4 cursor-pointer flex-1" onClick={onClick}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-100 text-slate-400'}`}>
+    {/* Delete button - top right corner */}
+    <button 
+      onClick={(e) => { e.stopPropagation(); onDelete(); }}
+      className="absolute top-3 right-3 p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all z-10"
+      title="Удалить авто"
+    >
+      <Trash2 size={16} />
+    </button>
+
+    <div className="flex items-center gap-4 cursor-pointer pr-10" onClick={onClick}>
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-100 text-slate-400'}`}>
         <Car size={20} />
       </div>
-      <div>
-        <p className="font-bold text-slate-900">{make} {model}</p>
-        <div className="flex items-center gap-2">
-          <p className="text-[10px] text-slate-400 font-medium uppercase">{vin || 'VIN не указан'} • {year} г.в.</p>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-bold text-slate-900">{make} {model}</p>
+          {active && (
+            <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">Текущая</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <p className="text-[10px] text-slate-400 font-medium uppercase truncate">{vin || 'VIN не указан'} • {year} г.в.</p>
           {licensePlate && (
-            <span className="text-[9px] bg-white text-slate-900 px-1.5 py-0.5 rounded border border-slate-200 font-black tracking-tighter uppercase shadow-sm">
+            <span className="text-[9px] bg-white text-slate-900 px-1.5 py-0.5 rounded border border-slate-200 font-black tracking-tighter uppercase shadow-sm shrink-0">
               {licensePlate}
             </span>
           )}
         </div>
       </div>
-    </div>
-    <div className="flex items-center gap-3">
-      {active && (
-        <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-wider">Текущая</span>
-      )}
-      <button 
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
-      >
-        <Trash2 size={16} />
-      </button>
     </div>
   </div>
 );
