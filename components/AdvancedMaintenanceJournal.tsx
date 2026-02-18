@@ -26,24 +26,17 @@ import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
 
 // --- Interfaces ---
-type RecordType = 'repair' | 'parts' | 'fuel' | 'service';
-
+// Формат записи из MaintenanceLog (dashboardData.maintenanceRecords) — единый источник данных
 interface MaintenanceRecord {
   id: string;
-  carId: string;
-  type: RecordType;
   date: string;
+  mileage: number;
+  intervalKm: number;
+  intervalMonths: number;
   description: string;
-  amount: number;
-  receiptImage?: string;
+  price: number;
+  comment: string;
 }
-
-const CATEGORIES: Record<RecordType, { label: string; icon: any; color: string; bgColor: string; badgeColor: string }> = {
-  repair: { label: 'Ремонт', icon: Wrench, color: 'text-rose-600', bgColor: 'bg-rose-50', badgeColor: '#ef4444' },
-  parts: { label: 'Запчасти', icon: Cog, color: 'text-amber-600', bgColor: 'bg-amber-50', badgeColor: '#f59e0b' },
-  fuel: { label: 'Топливо', icon: Fuel, color: 'text-indigo-600', bgColor: 'bg-indigo-50', badgeColor: '#8b5cf6' },
-  service: { label: 'ТО', icon: Shield, color: 'text-emerald-600', bgColor: 'bg-emerald-50', badgeColor: '#10b981' }
-};
 
 const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) => (
   <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
@@ -57,16 +50,17 @@ const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) =
 
 export const AdvancedMaintenanceJournal = ({ 
   cars = [], 
-  onSendToTelegram
+  onSendToTelegram,
+  onUpdateCarDashboard
 }: { 
   cars: any[], 
   onAddCar?: (car: any) => void, 
   onDeleteCar?: (id: string) => void,
-  onSendToTelegram?: (base64: string, carName: string) => void
+  onSendToTelegram?: (base64: string, carName: string) => void,
+  onUpdateCarDashboard?: (carId: string, updater: (dashboardData: any) => any) => void
 }) => {
   const [activeCarId, setActiveCarId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [formDate, setFormDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -87,24 +81,6 @@ export const AdvancedMaintenanceJournal = ({
     }
   }, []);
 
-  // Загрузка записей из localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('autoai_maintenance_records');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setRecords(parsed);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
-
-  // Сохранение записей в localStorage
-  useEffect(() => {
-    localStorage.setItem('autoai_maintenance_records', JSON.stringify(records));
-  }, [records]);
-
   // Установка первого авто как активного
   useEffect(() => {
     if (cars && cars.length > 0 && !activeCarId) {
@@ -114,55 +90,55 @@ export const AdvancedMaintenanceJournal = ({
 
   const activeCar = useMemo(() => (cars || []).find(c => c.id === activeCarId), [cars, activeCarId]);
 
-  // Все записи для активного авто (без фильтра поиска) — используется в PDF и статистике
-  const allCarRecords = useMemo(() => {
-    if (!activeCarId) return [];
-    return records
-      .filter(r => r.carId === activeCarId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [records, activeCarId]);
+  // ✅ Единый источник данных — dashboardData.maintenanceRecords из Журнала ТО
+  const allCarRecords: MaintenanceRecord[] = useMemo(() => {
+    if (!activeCar) return [];
+    const records: MaintenanceRecord[] = activeCar.dashboardData?.maintenanceRecords || [];
+    return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [activeCar]);
 
-  // Записи с фильтром поиска — используется только для отображения на экране
+  // Записи с фильтром поиска — для отображения на экране
   const carRecords = useMemo(() => {
-    if (!activeCarId) return [];
     return allCarRecords.filter(r =>
-      r.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (CATEGORIES[r.type]?.label || '').toLowerCase().includes(searchTerm.toLowerCase())
+      r.description?.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [allCarRecords, activeCarId, searchTerm]);
+  }, [allCarRecords, searchTerm]);
 
   const stats = useMemo(() => {
-    if (!activeCarId) return { total: 0, byType: {} as Record<string, number> };
-    const total = allCarRecords.reduce((sum, r) => sum + r.amount, 0);
-    const byType = allCarRecords.reduce((acc, r) => {
-      acc[r.type] = (acc[r.type] || 0) + r.amount;
-      return acc;
-    }, {} as Record<string, number>);
-    return { total, byType };
-  }, [allCarRecords, activeCarId]);
+    const total = allCarRecords.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+    return { total, count: allCarRecords.length };
+  }, [allCarRecords]);
 
   const handleAddRecord = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!activeCarId) return;
+    if (!activeCarId || !onUpdateCarDashboard) return;
     const formData = new FormData(e.currentTarget);
     const newRecord: MaintenanceRecord = {
       id: Date.now().toString(),
-      carId: activeCarId,
-      type: formData.get('type') as RecordType,
       date: formData.get('date') as string,
       description: formData.get('description') as string,
-      amount: Number(formData.get('amount')),
-      receiptImage: tempReceiptImage || undefined
+      price: Number(formData.get('amount')),
+      mileage: Number(activeCar?.mileage) || 0,
+      intervalKm: 10000,
+      intervalMonths: 12,
+      comment: ''
     };
-    setRecords(prev => [...prev, newRecord]);
+    onUpdateCarDashboard(activeCarId, (dash) => ({
+      ...dash,
+      maintenanceRecords: [newRecord, ...(dash.maintenanceRecords || [])]
+    }));
     setShowAddModal(false);
     setTempReceiptImage(null);
     toast.success('Запись сохранена');
   };
 
   const deleteRecord = (id: string) => {
+    if (!activeCarId || !onUpdateCarDashboard) return;
     if (!window.confirm('Удалить запись?')) return;
-    setRecords(prev => prev.filter(r => r.id !== id));
+    onUpdateCarDashboard(activeCarId, (dash) => ({
+      ...dash,
+      maintenanceRecords: (dash.maintenanceRecords || []).filter((r: any) => r.id !== id)
+    }));
     toast.success('Запись удалена');
   };
 
@@ -176,7 +152,6 @@ export const AdvancedMaintenanceJournal = ({
       toast.error('Выберите автомобиль');
       return;
     }
-    // ✅ Проверка до запуска генерации
     if (toTelegram && !onSendToTelegram) {
       toast.error('Функция отправки в Telegram не подключена');
       return;
@@ -233,7 +208,6 @@ export const AdvancedMaintenanceJournal = ({
       await new Promise(r => setTimeout(r, 500));
 
       if (toTelegram) {
-        // ✅ Исправлено: получаем Blob, затем конвертируем в base64 через FileReader
         const pdfBlob: Blob = await h2p().set(opt).from(element).outputPdf('blob');
 
         clearTimeout(safetyTimer);
@@ -270,11 +244,10 @@ export const AdvancedMaintenanceJournal = ({
     if (!JSZipLib) return toast.error('ZIP модуль загружается...');
     try {
       const zip = new JSZipLib();
-      // ✅ Исправлено: убраны двойные escape-символы
       const csv =
-        '\uFEFFДата,Тип,Описание,Сумма\n' +
-        carRecords
-          .map(r => `${r.date},${CATEGORIES[r.type]?.label || r.type},${r.description},${r.amount}`)
+        '\uFEFFДата,Описание,Стоимость,Пробег\n' +
+        allCarRecords
+          .map(r => `${r.date},${r.description},${r.price},${r.mileage}`)
           .join('\n');
       zip.file('report.csv', csv);
       const blob = await zip.generateAsync({ type: 'blob' });
@@ -283,7 +256,7 @@ export const AdvancedMaintenanceJournal = ({
       a.href = url;
       a.download = 'AutoAI_Records.zip';
       a.click();
-      URL.revokeObjectURL(url); // ✅ Освобождаем память
+      URL.revokeObjectURL(url);
       toast.success('Архив готов');
     } catch (e) {
       toast.error('Ошибка экспорта');
@@ -308,7 +281,7 @@ export const AdvancedMaintenanceJournal = ({
         }}
       />
 
-      {/* Скрытый контейнер для генерации PDF */}
+      {/* Скрытый контейнер для генерации PDF — данные из dashboardData.maintenanceRecords */}
       <div style={{ position: 'absolute', left: '-5000px', top: 0, width: '210mm', pointerEvents: 'none' }}>
         {activeCar && (
           <div ref={reportRef} style={{ background: 'white' }}>
@@ -348,20 +321,20 @@ export const AdvancedMaintenanceJournal = ({
               <div className="pdf-stat">
                 <div className="pdf-lbl">ТО / СЕРВИС</div>
                 <div className="pdf-val" style={{ color: '#10b981' }}>
-                  {(stats.byType.service || 0).toLocaleString()} ₽
+                  {stats.total.toLocaleString()} ₽
                 </div>
               </div>
             </div>
 
             <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>
-              ИСТОРИЯ ОБСЛУЖИВАНИЯ
+              ИСТОРИЯ ОБСЛУЖИВАНИЯ ({allCarRecords.length} записей)
             </div>
             <table className="pdf-table">
               <thead>
                 <tr>
                   <th>ДАТА</th>
-                  <th>КАТЕГОРИЯ</th>
                   <th>ОПИСАНИЕ</th>
+                  <th>ПРОБЕГ</th>
                   <th style={{ textAlign: 'right' }}>СУММА</th>
                 </tr>
               </thead>
@@ -369,12 +342,10 @@ export const AdvancedMaintenanceJournal = ({
                 {allCarRecords.map(r => (
                   <tr key={r.id}>
                     <td>{r.date}</td>
-                    <td style={{ fontWeight: 'bold', color: CATEGORIES[r.type]?.badgeColor }}>
-                      {(CATEGORIES[r.type]?.label || r.type).toUpperCase()}
-                    </td>
-                    <td>{r.description}</td>
+                    <td style={{ fontWeight: 'bold' }}>{r.description}</td>
+                    <td>{(Number(r.mileage) || 0).toLocaleString()} км</td>
                     <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                      {r.amount.toLocaleString()} ₽
+                      {(Number(r.price) || 0).toLocaleString()} ₽
                     </td>
                   </tr>
                 ))}
@@ -468,15 +439,13 @@ export const AdvancedMaintenanceJournal = ({
           </div>
 
           {/* Статистика */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="col-span-2 lg:col-span-1 bg-indigo-600 p-5 rounded-[28px] text-white shadow-xl shadow-indigo-50">
-              <p className="text-[9px] font-black uppercase tracking-widest opacity-70 mb-1">Итого</p>
+              <p className="text-[9px] font-black uppercase tracking-widest opacity-70 mb-1">Итого расходы</p>
               <h4 className="text-xl font-black">{stats.total.toLocaleString()} ₽</h4>
             </div>
-            <StatCard label="Ремонт" value={`${(stats.byType.repair || 0).toLocaleString()} ₽`} icon={Wrench} colorClass="text-rose-600" bgColorClass="bg-rose-50" />
-            <StatCard label="Запчасти" value={`${(stats.byType.parts || 0).toLocaleString()} ₽`} icon={Cog} colorClass="text-amber-600" bgColorClass="bg-amber-50" />
-            <StatCard label="Топливо" value={`${(stats.byType.fuel || 0).toLocaleString()} ₽`} icon={Fuel} colorClass="text-indigo-600" bgColorClass="bg-indigo-50" />
-            <StatCard label="ТО" value={`${(stats.byType.service || 0).toLocaleString()} ₽`} icon={Shield} colorClass="text-emerald-600" bgColorClass="bg-emerald-50" />
+            <StatCard label="Записей" value={stats.count} icon={History} colorClass="text-indigo-600" bgColorClass="bg-indigo-50" />
+            <StatCard label="Пробег" value={`${(Number(activeCar.mileage) || 0).toLocaleString()} км`} icon={Activity} colorClass="text-emerald-600" bgColorClass="bg-emerald-50" />
           </div>
 
           {/* История обслуживания */}
@@ -484,6 +453,7 @@ export const AdvancedMaintenanceJournal = ({
             <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between gap-4">
               <h3 className="font-black text-slate-900 uppercase tracking-tighter text-md flex items-center gap-2">
                 <History size={18} /> История обслуживания
+                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-lg font-black ml-1">{allCarRecords.length}</span>
               </h3>
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
@@ -500,44 +470,41 @@ export const AdvancedMaintenanceJournal = ({
               {carRecords.length > 0 ? (
                 <table className="w-full text-left">
                   <tbody className="divide-y divide-slate-50">
-                    {carRecords.map(record => {
-                      const cat = CATEGORIES[record.type];
-                      return (
-                        <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-xl ${cat?.bgColor || 'bg-slate-50'} ${cat?.color || 'text-slate-400'} flex items-center justify-center shrink-0`}>
-                              {cat?.icon ? <cat.icon size={16} /> : <Wrench size={16} />}
-                            </div>
-                            <div>
-                              <p className="text-[13px] font-black text-slate-900 uppercase leading-tight">
-                                {record.description || 'Без описания'}
-                              </p>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                {new Date(record.date).toLocaleDateString('ru-RU')} • {cat?.label || 'Запись'}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <span className="text-[13px] font-black text-slate-900">
-                              {(record.amount || 0).toLocaleString()} ₽
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <button
-                              onClick={() => deleteRecord(record.id)}
-                              className="p-2 text-slate-200 hover:text-rose-500 transition-colors"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {carRecords.map(record => (
+                      <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                            <Wrench size={16} />
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-black text-slate-900 uppercase leading-tight">
+                              {record.description || 'Без описания'}
+                            </p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                              {new Date(record.date).toLocaleDateString('ru-RU')} • {(Number(record.mileage) || 0).toLocaleString()} км
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="text-[13px] font-black text-slate-900">
+                            {(Number(record.price) || 0).toLocaleString()} ₽
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            onClick={() => deleteRecord(record.id)}
+                            className="p-2 text-slate-200 hover:text-rose-500 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               ) : (
                 <div className="py-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-widest">
-                  Журнал пуст
+                  {searchTerm ? 'Ничего не найдено' : 'Журнал пуст — добавьте записи в разделе Рабочий стол → Журнал ТО'}
                 </div>
               )}
             </div>
@@ -579,34 +546,18 @@ export const AdvancedMaintenanceJournal = ({
                 </button>
               </div>
               <form onSubmit={handleAddRecord} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">
-                      Тип
-                    </label>
-                    <select
-                      name="type"
-                      required
-                      className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none"
-                    >
-                      {Object.entries(CATEGORIES).map(([key, val]) => (
-                        <option key={key} value={key}>{val.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">
-                      Дата
-                    </label>
-                    <input
-                      name="date"
-                      type="date"
-                      required
-                      value={formDate}
-                      onChange={(e) => setFormDate(e.target.value)}
-                      className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">
+                    Дата
+                  </label>
+                  <input
+                    name="date"
+                    type="date"
+                    required
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none"
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">
@@ -617,12 +568,12 @@ export const AdvancedMaintenanceJournal = ({
                     type="text"
                     required
                     className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold outline-none"
-                    placeholder="Замена масла"
+                    placeholder="Замена масла, фильтров..."
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">
-                    Сумма (₽)
+                    Стоимость (₽)
                   </label>
                   <input
                     name="amount"
