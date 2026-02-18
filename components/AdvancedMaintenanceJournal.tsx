@@ -114,29 +114,32 @@ export const AdvancedMaintenanceJournal = ({
 
   const activeCar = useMemo(() => (cars || []).find(c => c.id === activeCarId), [cars, activeCarId]);
 
-  const carRecords = useMemo(() => {
+  // Все записи для активного авто (без фильтра поиска) — используется в PDF и статистике
+  const allCarRecords = useMemo(() => {
     if (!activeCarId) return [];
     return records
-      .filter(r =>
-        r.carId === activeCarId &&
-        (
-          r.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (CATEGORIES[r.type]?.label || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
+      .filter(r => r.carId === activeCarId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [records, activeCarId, searchTerm]);
+  }, [records, activeCarId]);
+
+  // Записи с фильтром поиска — используется только для отображения на экране
+  const carRecords = useMemo(() => {
+    if (!activeCarId) return [];
+    return allCarRecords.filter(r =>
+      r.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (CATEGORIES[r.type]?.label || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [allCarRecords, activeCarId, searchTerm]);
 
   const stats = useMemo(() => {
     if (!activeCarId) return { total: 0, byType: {} as Record<string, number> };
-    const carRecs = records.filter(r => r.carId === activeCarId);
-    const total = carRecs.reduce((sum, r) => sum + r.amount, 0);
-    const byType = carRecs.reduce((acc, r) => {
+    const total = allCarRecords.reduce((sum, r) => sum + r.amount, 0);
+    const byType = allCarRecords.reduce((acc, r) => {
       acc[r.type] = (acc[r.type] || 0) + r.amount;
       return acc;
     }, {} as Record<string, number>);
     return { total, byType };
-  }, [records, activeCarId]);
+  }, [allCarRecords, activeCarId]);
 
   const handleAddRecord = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -336,7 +339,7 @@ export const AdvancedMaintenanceJournal = ({
               </div>
               <div className="pdf-stat">
                 <div className="pdf-lbl">ЗАПИСЕЙ</div>
-                <div className="pdf-val">{carRecords.length}</div>
+                <div className="pdf-val">{allCarRecords.length}</div>
               </div>
               <div className="pdf-stat">
                 <div className="pdf-lbl">ПРОБЕГ</div>
@@ -363,7 +366,7 @@ export const AdvancedMaintenanceJournal = ({
                 </tr>
               </thead>
               <tbody>
-                {carRecords.map(r => (
+                {allCarRecords.map(r => (
                   <tr key={r.id}>
                     <td>{r.date}</td>
                     <td style={{ fontWeight: 'bold', color: CATEGORIES[r.type]?.badgeColor }}>
