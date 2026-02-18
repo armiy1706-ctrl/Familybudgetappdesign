@@ -25,8 +25,6 @@ import {
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { CameraCapture } from './CameraCapture';
-import { MaintenanceLog } from './MaintenanceLog';
-import { MaintenanceAlerts } from './MaintenanceAlerts';
 
 // --- Comparison Modal ---
 const ComparisonModal = ({ isOpen, onClose, records }: { isOpen: boolean, onClose: () => void, records: any[] }) => {
@@ -167,14 +165,13 @@ const ComparisonModal = ({ isOpen, onClose, records }: { isOpen: boolean, onClos
   );
 };
 
-export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar, onOpenCamera, session }: { 
+export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar, onOpenCamera }: { 
   onNavigate: (tab: string) => void, 
   activeCar?: any,
   dashboardData: any,
   setDashboardData: (data: any) => void,
   onDeleteCar: (id: string) => void,
-  onOpenCamera: () => void,
-  session: any
+  onOpenCamera: () => void
 }) => {
   const [showOilModal, setShowOilModal] = useState(false);
   const [showBrakeModal, setShowBrakeModal] = useState(false);
@@ -626,24 +623,6 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           </div>
         </div>
       </div>
-
-      {/* Уведомления о ТО с отправкой в Telegram */}
-      {activeCar && (
-        <MaintenanceAlerts 
-          activeCar={activeCar} 
-          dashboardData={dashboardData} 
-          session={session} 
-        />
-      )}
-
-      {/* Журнал ТО — интегрированный компонент MaintenanceLog */}
-      {activeCar && (
-        <MaintenanceLog 
-          activeCar={activeCar} 
-          dashboardData={dashboardData} 
-          setDashboardData={setDashboardData} 
-        />
-      )}
 
       <ServiceModal 
         isOpen={showOilModal} 
