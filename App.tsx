@@ -151,6 +151,19 @@ export default function App() {
     });
   };
 
+  const updateCarDashboardById = (carId: string, updater: (dashboardData: any) => any) => {
+    setCars(prev => {
+      const newCars = prev.map(c => {
+        if (c.id === carId) {
+          return { ...c, dashboardData: updater(c.dashboardData || {}) };
+        }
+        return c;
+      });
+      syncCarsWithServer(newCars);
+      return newCars;
+    });
+  };
+
   const deleteCar = (id: string) => {
     if (!window.confirm("Удалить автомобиль?")) return;
     setCars(prev => {
@@ -407,6 +420,7 @@ export default function App() {
                     setDashboardData={updateDashboardData} 
                     onDeleteCar={deleteCar} 
                     onOpenCamera={() => setIsCameraOpen(true)}
+                    session={session}
                   />
                 )}
                 {activeTab === 'maintenance' && (
@@ -415,6 +429,7 @@ export default function App() {
                     onAddCar={addCar} 
                     onDeleteCar={deleteCar} 
                     onSendToTelegram={sendReportToTelegram}
+                    onUpdateCarDashboard={updateCarDashboardById}
                   />
                 )}
                 {activeTab === 'diagnostics' && (
