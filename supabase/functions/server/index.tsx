@@ -48,8 +48,7 @@ async function callOpenAI(prompt: string, text: string, imageBase64?: string) {
     });
     
     if (response.status === 429) {
-      console.warn("OpenAI Quota Exceeded. Returning fallback response for demo purposes.");
-      return null; // Signal to use fallback
+      throw new Error("OpenAI Quota Exceeded: Пожалуйста, проверьте баланс вашего аккаунта OpenAI или используйте другой ключ.");
     }
 
     if (!response.ok) {
@@ -77,15 +76,7 @@ app.post('/diagnose', async (c) => {
     
     Авто: ${carInfo?.make || 'Неизвестно'} ${carInfo?.model || ''}. Пробег: ${carInfo?.mileage || 0} км.`;
 
-    let content = await callOpenAI(systemPrompt, text, image);
-
-    // Fallback for Quota Exceeded (Demo Mode)
-    let isMock = false;
-    if (content === null) {
-      isMock = true;
-      content = `[DEMO MODE: Quota Exceeded] Основываясь на ваших симптомах ("${text}"), я предполагаю возможную проблему с системой зажигания или топливной системой. Рекомендуется проверить свечи зажигания и давление в топливной рампе.
-      {"results": [{"diagnosis": "Износ свечей зажигания", "confidence": 0.85, "description": "Симптомы указывают на пропуски зажигания. Рекомендуется визуальный осмотр свечей.", "risk": "Средний", "urgency": "В течение недели", "estimatedCost": "3500 руб"}]}`;
-    }
+    const content = await callOpenAI(systemPrompt, text, image);
 
     let results = [];
     let message = content;
@@ -104,7 +95,7 @@ app.post('/diagnose', async (c) => {
       }
     }
 
-    return c.json({ message: message || "Анализ завершен.", results, isMock });
+    return c.json({ message: message || "Анализ завершен.", results });
   } catch (error) {
     console.error("Diagnose Route Error:", error);
     // Return a structured error response that the frontend can display nicely
@@ -198,18 +189,8 @@ app.post('/ocr-receipt', async (c) => {
     Ответ выдай СТРОГО в формате JSON: {"amount": 1234.50, "date": "YYYY-MM-DD"}.
     Только JSON, без лишнего текста.`;
 
-    let content = await callOpenAI(systemPrompt, "Просканируй этот чек.", image);
+    const content = await callOpenAI(systemPrompt, "Просканируй этот чек.", image);
     
-    // Fallback for Quota Exceeded
-    if (content === null) {
-      return c.json({ 
-        amount: 2500.00, 
-        date: new Date().toISOString().split('T')[0],
-        isDemo: true,
-        note: "Используются демо-данные (Quota Exceeded)"
-      });
-    }
-
     try {
       const jsonStr = content.replace(/```json|```/g, '').trim();
       const result = JSON.parse(jsonStr);
@@ -277,6 +258,115 @@ app.post('/send-report', async (c) => {
   } catch (error) {
     console.error("Send Report Error:", error);
     return c.json({ error: 'Internal Server Error', details: error.message }, 500);
+  }
+})
+
+// --- Maintenance Alert Notifications ---
+app.post('/send-maintenance-alert', async (c) => {
+  try {
+    const { tgId, carName, alerts } = await c.req.json();
+    if (!tgId || !alerts || alerts.length === 0) {
+      return c.json({ error: 'Missing data', details: 'tgId and alerts are required' }, 400);
+    }
+
+    if (tgId === 'demo_user' || isNaN(Number(tgId))) {
+      return c.json({
+        error: 'Invalid Telegram ID',
+        details: 'Уведомления доступны только при запуске через Telegram. В демо-режиме функция отключена.'
+      }, 400);
+    }
+
+    const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+    if (!botToken) return c.json({ error: 'Bot token not configured' }, 500);
+
+    const severityEmoji: Record<string, string> = {
+      critical: '🔴',
+      warning: '🟡',
+      ok: '🟢'
+    };
+
+    const severityLabel: Record<string, string> = {
+      critical: 'ПРОСРОЧЕНО',
+      warning: 'СКОРО',
+      ok: 'В НОРМЕ'
+    };
+
+    let text = `🔧 <b>AutoAI — Уведомление о ТО</b>\n`;
+    text += `🚗 <b>${carName || 'Автомобиль'}</b>\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    for (const alert of alerts) {
+      const emoji = severityEmoji[alert.severity] || '⚪';
+      const label = severityLabel[alert.severity] || alert.severity;
+
+      text += `${emoji} <b>${alert.description}</b>  [${label}]\n`;
+
+      if (alert.kmRemaining <= 0) {
+        text += `   ⚠️ Просрочено на <b>${Math.abs(alert.kmRemaining).toLocaleString('ru-RU')}</b> км\n`;
+      } else {
+        text += `   📏 Осталось: <b>${alert.kmRemaining.toLocaleString('ru-RU')}</b> км\n`;
+      }
+
+      if (alert.daysRemaining <= 0) {
+        text += `   ⚠️ Просрочено на <b>${Math.abs(alert.daysRemaining)}</b> дн.\n`;
+      } else {
+        text += `   📅 Осталось: <b>${alert.daysRemaining}</b> дн.\n`;
+      }
+
+      text += `   🗓 Плановая дата: ${alert.nextDate}\n`;
+      text += `   🛣 Плановый пробег: ${alert.nextKm?.toLocaleString('ru-RU')} км\n\n`;
+    }
+
+    const critCount = alerts.filter((a: any) => a.severity === 'critical').length;
+    const warnCount = alerts.filter((a: any) => a.severity === 'warning').length;
+
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    if (critCount > 0) {
+      text += `🔴 <b>${critCount}</b> просрочено  `;
+    }
+    if (warnCount > 0) {
+      text += `🟡 <b>${warnCount}</b> скоро`;
+    }
+    text += `\n\n💡 <i>Откройте AutoAI для подробностей и записи на сервис.</i>`;
+
+    console.log(`Sending maintenance alert to TG ID: ${tgId}, alerts: ${alerts.length}`);
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: tgId,
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true
+      })
+    });
+
+    const tgData = await tgRes.json();
+    if (!tgRes.ok) {
+      console.error("Telegram API Error (maintenance alert):", tgData);
+      return c.json({ error: 'Telegram API Error', details: tgData.description || 'Unknown error' }, 500);
+    }
+
+    return c.json({ success: true, messageId: tgData.result?.message_id });
+  } catch (error) {
+    console.error("Send Maintenance Alert Error:", error);
+    return c.json({ error: 'Internal Server Error', details: error.message }, 500);
+  }
+})
+
+app.post('/mark-notification-sent', async (c) => {
+  try {
+    const { tgId, carId } = await c.req.json();
+    if (!tgId || !carId) return c.json({ error: 'Missing tgId or carId' }, 400);
+
+    const key = `notif_sent_${tgId}_${carId}`;
+    await kv.set(key, { sentAt: new Date().toISOString(), tgId, carId });
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Mark notification sent error:", error);
+    return c.json({ error: error.message }, 500);
   }
 })
 
