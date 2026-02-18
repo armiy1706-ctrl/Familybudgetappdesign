@@ -323,7 +323,7 @@ export const AdvancedMaintenanceJournal = ({
                 </div>
               </div>
               <div className="pdf-col">
-                <div className="pdf-lbl">ИДЕНТИФИКАЦИЯ</div>
+                <div className="pdf-lbl">VIN</div>
                 <div className="pdf-val" style={{ fontSize: '13px' }}>{activeCar.vin || '—'}</div>
                 <div style={{ fontSize: '11px', color: '#666' }}>ID: {activeCar.id}</div>
               </div>
