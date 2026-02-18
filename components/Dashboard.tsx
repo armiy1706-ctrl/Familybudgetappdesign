@@ -25,6 +25,8 @@ import {
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { CameraCapture } from './CameraCapture';
+import { MaintenanceLog } from './MaintenanceLog';
+import { MaintenanceAlerts } from './MaintenanceAlerts';
 
 // --- Comparison Modal ---
 const ComparisonModal = ({ isOpen, onClose, records }: { isOpen: boolean, onClose: () => void, records: any[] }) => {
@@ -53,8 +55,8 @@ const ComparisonModal = ({ isOpen, onClose, records }: { isOpen: boolean, onClos
       const opt = {
         margin: 10,
         filename: `AutoAI_Report_${new Date().toLocaleDateString()}.pdf`,
-        image: { type: 'jpeg', quality: 1.0 },
-        html2canvas: { scale: 2, useCORS: true, allowTaint: true },
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
@@ -165,13 +167,14 @@ const ComparisonModal = ({ isOpen, onClose, records }: { isOpen: boolean, onClos
   );
 };
 
-export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar, onOpenCamera }: { 
+export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardData, onDeleteCar, onOpenCamera, session }: { 
   onNavigate: (tab: string) => void, 
   activeCar?: any,
   dashboardData: any,
   setDashboardData: (data: any) => void,
   onDeleteCar: (id: string) => void,
-  onOpenCamera: () => void
+  onOpenCamera: () => void,
+  session: any
 }) => {
   const [showOilModal, setShowOilModal] = useState(false);
   const [showBrakeModal, setShowBrakeModal] = useState(false);
@@ -600,7 +603,7 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
             {brakeStatus && getBrakePercentage() < 30 ? (
               <RecommendationItem 
                 title="Износ тормозных колодок" 
-                desc={`Ресурс тормозной системы: ${getBrakePercentage()}%. Эффе��тивность торможения может быть снижена.`} 
+                desc={`Ресурс тормозной системы: ${getBrakePercentage()}%. Эффективность торможения может быть снижена.`} 
                 severity="Средний" 
                 severityColor="text-amber-500"
               />
@@ -623,6 +626,24 @@ export const Dashboard = ({ onNavigate, activeCar, dashboardData, setDashboardDa
           </div>
         </div>
       </div>
+
+      {/* Уведомления о ТО с отправкой в Telegram */}
+      {activeCar && (
+        <MaintenanceAlerts 
+          activeCar={activeCar} 
+          dashboardData={dashboardData} 
+          session={session} 
+        />
+      )}
+
+      {/* Журнал ТО — интегрированный компонент MaintenanceLog */}
+      {activeCar && (
+        <MaintenanceLog 
+          activeCar={activeCar} 
+          dashboardData={dashboardData} 
+          setDashboardData={setDashboardData} 
+        />
+      )}
 
       <ServiceModal 
         isOpen={showOilModal} 
