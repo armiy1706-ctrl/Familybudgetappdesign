@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraCapture } from './CameraCapture';
+import { MaintenanceLog } from './MaintenanceLog';
+import { MaintenanceAlerts } from './MaintenanceAlerts';
 
 // --- Interfaces ---
 // Формат записи из MaintenanceLog (dashboardData.maintenanceRecords) — единый источник данных
@@ -51,13 +53,15 @@ const StatCard = ({ label, value, icon: Icon, colorClass, bgColorClass }: any) =
 export const AdvancedMaintenanceJournal = ({ 
   cars = [], 
   onSendToTelegram,
-  onUpdateCarDashboard
+  onUpdateCarDashboard,
+  session
 }: { 
   cars: any[], 
   onAddCar?: (car: any) => void, 
   onDeleteCar?: (id: string) => void,
   onSendToTelegram?: (base64: string, carName: string) => void,
-  onUpdateCarDashboard?: (carId: string, updater: (dashboardData: any) => any) => void
+  onUpdateCarDashboard?: (carId: string, updater: (dashboardData: any) => any) => void,
+  session?: any
 }) => {
   const [activeCarId, setActiveCarId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -108,6 +112,12 @@ export const AdvancedMaintenanceJournal = ({
     const total = allCarRecords.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
     return { total, count: allCarRecords.length };
   }, [allCarRecords]);
+
+  // Wrapper для setDashboardData — используется MaintenanceLog
+  const setActiveCarDashboardData = (newData: any) => {
+    if (!activeCarId || !onUpdateCarDashboard) return;
+    onUpdateCarDashboard(activeCarId, () => newData);
+  };
 
   const handleAddRecord = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -447,6 +457,20 @@ export const AdvancedMaintenanceJournal = ({
             <StatCard label="Записей" value={stats.count} icon={History} colorClass="text-indigo-600" bgColorClass="bg-indigo-50" />
             <StatCard label="Пробег" value={`${(Number(activeCar.mileage) || 0).toLocaleString()} км`} icon={Activity} colorClass="text-emerald-600" bgColorClass="bg-emerald-50" />
           </div>
+
+          {/* Настройка ТО и история обслуживания */}
+          <MaintenanceLog 
+            activeCar={activeCar} 
+            dashboardData={activeCar.dashboardData} 
+            setDashboardData={setActiveCarDashboardData} 
+          />
+
+          {/* Уведомления о ТО */}
+          <MaintenanceAlerts 
+            activeCar={activeCar} 
+            dashboardData={activeCar.dashboardData} 
+            session={session} 
+          />
 
           {/* История обслуживания */}
           <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
