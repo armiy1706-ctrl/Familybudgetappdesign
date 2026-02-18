@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   AlertTriangle, 
@@ -16,9 +16,15 @@ import {
   Loader2,
   BellOff,
   Settings2,
-  Calendar
+  Calendar,
+  Server,
+  RefreshCw,
+  CloudOff,
+  Cloud,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 interface MaintenanceRecord {
@@ -84,14 +90,94 @@ export const MaintenanceAlerts = ({
     }
   });
 
+  // --- Server cron state ---
+  const [cronStatus, setCronStatus] = useState<{
+    isRegistered: boolean;
+    cronConfigured: boolean;
+    serverSettingsSynced: boolean;
+    lastCronNotif: string | null;
+  } | null>(null);
+  const [isSyncingSettings, setIsSyncingSettings] = useState(false);
+  const settingsSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const tgId = session?.user?.user_metadata?.telegram_id;
   const currentOdometer = Number(dashboardData?.currentOdometer) || (Number(activeCar?.mileage) || 0);
   const maintenanceRecords: MaintenanceRecord[] = dashboardData?.maintenanceRecords || [];
 
-  // Save settings to localStorage
+  // Save settings to localStorage + sync to server (debounced)
   useEffect(() => {
     localStorage.setItem('autoai_notification_settings', JSON.stringify(settings));
-  }, [settings]);
+
+    // Debounced sync to server
+    if (tgId && tgId !== 'demo_user') {
+      if (settingsSyncTimer.current) clearTimeout(settingsSyncTimer.current);
+      settingsSyncTimer.current = setTimeout(() => {
+        syncSettingsToServer(settings);
+      }, 1500);
+    }
+
+    return () => {
+      if (settingsSyncTimer.current) clearTimeout(settingsSyncTimer.current);
+    };
+  }, [settings, tgId]);
+
+  // Fetch cron status on mount
+  useEffect(() => {
+    if (!tgId || tgId === 'demo_user') return;
+    fetchCronStatus();
+  }, [tgId, activeCar?.id]);
+
+  const fetchCronStatus = useCallback(async () => {
+    if (!tgId || tgId === 'demo_user') return;
+    try {
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/cron-status?tgId=${tgId}`,
+        { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const lastNotifForCar = activeCar?.id ? data.lastCronNotifications?.[activeCar.id] : null;
+        setCronStatus({
+          isRegistered: data.isRegistered,
+          cronConfigured: data.cronConfigured,
+          serverSettingsSynced: data.serverSettingsSynced,
+          lastCronNotif: lastNotifForCar || null,
+        });
+
+        // If server has settings but local doesn't match, optionally load from server
+        if (data.settings && !localStorage.getItem('autoai_notification_settings')) {
+          setSettings(data.settings);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch cron status:', err);
+    }
+  }, [tgId, activeCar?.id]);
+
+  const syncSettingsToServer = useCallback(async (settingsToSync: NotificationSettings) => {
+    if (!tgId || tgId === 'demo_user') return;
+    setIsSyncingSettings(true);
+    try {
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-ac2bdc5c/save-notification-settings`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`
+          },
+          body: JSON.stringify({ tgId, settings: settingsToSync })
+        }
+      );
+      if (res.ok) {
+        setCronStatus(prev => prev ? { ...prev, serverSettingsSynced: true } : prev);
+      }
+    } catch (err) {
+      console.error('Failed to sync settings to server:', err);
+    } finally {
+      setIsSyncingSettings(false);
+    }
+  }, [tgId]);
 
   // Calculate alerts from all maintenance records
   const alerts: MaintenanceAlert[] = useMemo(() => {
@@ -437,6 +523,100 @@ export const MaintenanceAlerts = ({
                   />
                 </div>
               </div>
+
+              {/* Server Cron Status Indicator */}
+              {tgId && tgId !== 'demo_user' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Server size={12} className="text-slate-400" />
+                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Серверные уведомления (Cron)</span>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-slate-50 to-indigo-50/50 rounded-xl p-3 space-y-2 border border-slate-100">
+                    {/* Registration status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        {cronStatus?.isRegistered ? (
+                          <Wifi size={10} className="text-emerald-500" />
+                        ) : (
+                          <WifiOff size={10} className="text-slate-400" />
+                        )}
+                        <span className="text-[10px] font-bold text-slate-700">
+                          Регистрация в cron
+                        </span>
+                      </div>
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase ${
+                        cronStatus?.isRegistered 
+                          ? 'bg-emerald-100 text-emerald-600' 
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {cronStatus?.isRegistered ? 'Активна' : 'Ожидание'}
+                      </span>
+                    </div>
+
+                    {/* Settings sync status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        {isSyncingSettings ? (
+                          <RefreshCw size={10} className="text-indigo-500 animate-spin" />
+                        ) : cronStatus?.serverSettingsSynced ? (
+                          <Cloud size={10} className="text-indigo-500" />
+                        ) : (
+                          <CloudOff size={10} className="text-slate-400" />
+                        )}
+                        <span className="text-[10px] font-bold text-slate-700">
+                          Настройки на сервере
+                        </span>
+                      </div>
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase ${
+                        isSyncingSettings
+                          ? 'bg-indigo-100 text-indigo-600'
+                          : cronStatus?.serverSettingsSynced 
+                            ? 'bg-indigo-100 text-indigo-600' 
+                            : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {isSyncingSettings ? 'Синхр...' : cronStatus?.serverSettingsSynced ? 'Синхр.' : 'Не синхр.'}
+                      </span>
+                    </div>
+
+                    {/* Cron configured */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        {cronStatus?.cronConfigured ? (
+                          <CheckCircle2 size={10} className="text-emerald-500" />
+                        ) : (
+                          <AlertTriangle size={10} className="text-amber-500" />
+                        )}
+                        <span className="text-[10px] font-bold text-slate-700">
+                          Cron-сервис
+                        </span>
+                      </div>
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase ${
+                        cronStatus?.cronConfigured 
+                          ? 'bg-emerald-100 text-emerald-600' 
+                          : 'bg-amber-100 text-amber-600'
+                      }`}>
+                        {cronStatus?.cronConfigured ? 'Настроен' : 'Не настр.'}
+                      </span>
+                    </div>
+
+                    {/* Last cron notification */}
+                    {cronStatus?.lastCronNotif && (
+                      <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100">
+                        <Bell size={10} className="text-indigo-400" />
+                        <span className="text-[10px] text-indigo-600 font-medium">
+                          Посл. cron-уведомление: {new Date(cronStatus.lastCronNotif).toLocaleString('ru-RU')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Info text */}
+                    <p className="text-[9px] text-slate-400 leading-relaxed pt-1">
+                      Сервер автоматически проверяет все авто и отправляет напоминания в Telegram каждые 24ч — даже без открытия приложения.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {lastSentAt && (
                 <div className="flex items-center gap-2 p-2 bg-indigo-50 rounded-xl">
